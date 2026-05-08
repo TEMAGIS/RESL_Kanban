@@ -124,7 +124,6 @@ function CardView({ r, pending, style, dragging = false, forwardRef, handleProps
   const edit      = describeEditDate(r[FIELDS.editDate], r[FIELDS.status]);
   const entity    = v(r, FIELDS.entity);
   const esf       = v(r, FIELDS.esf);
-  const days      = v(r, FIELDS.daysDeployed);
   const mission   = v(r, FIELDS.missionId);
   const { qtyLine, nameLine } = describeResource(r);
 
@@ -181,7 +180,6 @@ function CardView({ r, pending, style, dragging = false, forwardRef, handleProps
       <div className="card-footer">
         {esf     && <span className="card-chip">ESF · {esf}</span>}
         {mission && <span className="card-chip">{mission}</span>}
-        {days != null && <span className="card-chip card-chip-mono">{days}d</span>}
         {pending && <span className="card-pending">Saving…</span>}
       </div>
     </div>
