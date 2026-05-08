@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -83,6 +83,25 @@ function cmpRequest(a, b) {
   return av - bv;
 }
 
+// Find the mission_id_rpt of the most recently edited record. Used as
+// the default Mission filter on first load so the board opens scoped
+// to whatever mission is currently active.
+function mostRecentMission(rows) {
+  let bestMission = null;
+  let bestEdit    = -Infinity;
+  for (const r of rows) {
+    const mission = r.mission_id_rpt;
+    if (!mission || !String(mission).trim()) continue;
+    const edit = Number(r.EditDate);
+    if (!Number.isFinite(edit) || edit <= 0) continue;
+    if (edit > bestEdit) {
+      bestEdit = edit;
+      bestMission = String(mission);
+    }
+  }
+  return bestMission;
+}
+
 function rowMatches(r, f) {
   if (f.mission && String(r.mission_id_rpt || '') !== f.mission) return false;
   if (f.esf     && String(r.coordinator   || '') !== f.esf)     return false;
@@ -144,6 +163,11 @@ export default function Board({ onSignOut }) {
   const [sortBy,       setSortBy]        = useState('updated'); // 'updated' | 'request'
   const [detailRow,    setDetailRow]     = useState(null);
 
+  // Have we already applied the "default to most recent mission" logic?
+  // We only do this once per session — if the user clears it, we don't
+  // re-apply on the next refresh tick.
+  const missionDefaultedRef = useRef(false);
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(TouchSensor,   { activationConstraint: { delay: 150, tolerance: 5 } }),
@@ -171,6 +195,27 @@ export default function Board({ onSignOut }) {
     const id = setInterval(refresh, CONFIG.refreshInterval);
     return () => clearInterval(id);
   }, [refresh]);
+
+  // Default the Mission filter to the most recently edited mission.
+  // Skipped when (a) we already defaulted, (b) Mission was URL-locked,
+  // (c) Mission already has a value (URL pre-fill or user-typed).
+  useEffect(() => {
+    if (missionDefaultedRef.current) return;
+    if (resources.length === 0) return;
+    if (lockedFilters.has('mission')) {
+      missionDefaultedRef.current = true;
+      return;
+    }
+    if (filters.mission) {
+      missionDefaultedRef.current = true;
+      return;
+    }
+    const recent = mostRecentMission(resources);
+    if (recent) {
+      missionDefaultedRef.current = true;
+      setFilters({ ...filters, mission: recent });
+    }
+  }, [resources, filters, lockedFilters, setFilters]);
 
   const filtered = useMemo(
     () => resources.filter((r) => rowMatches(r, filters)),
