@@ -68,8 +68,8 @@ function EditableSelectRow({ label, value, options, field, objectId, onUpdate })
   };
 
   const display = value == null ? '' : String(value);
-  // If the current value isn't in our options, show it anyway so the
-  // user sees what's there and can pick a new one.
+  // If the current value isn't in our canonical list, surface it anyway
+  // so the user can see what's stored and pick a replacement.
   const opts = display && !options.includes(display)
     ? [display, ...options]
     : options;
@@ -84,7 +84,10 @@ function EditableSelectRow({ label, value, options, field, objectId, onUpdate })
           onChange={handleChange}
           disabled={saving || !onUpdate}
         >
-          <option value="">— Select —</option>
+          {/* Blank option (no "Select" label) so the dropdown opens
+              showing the existing value, not a CTA. The blank entry is
+              still selectable for clearing the field. */}
+          <option value="">{display ? '(clear)' : ''}</option>
           {opts.map((o) => (
             <option key={o} value={o}>{o}</option>
           ))}
