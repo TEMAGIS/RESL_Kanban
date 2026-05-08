@@ -156,17 +156,16 @@ export const MISSION_TYPES = [
 //  feature service uses different exact strings (e.g. "On-Scene" vs "On Scene").
 // ============================================================================
 // Order mirrors the AGOL coded-value-domain dropdown so the board reads
-// the same way as the form. If you'd rather show a workflow sequence
-// (e.g. En Route → On Scene → Staged → On Hold → Demobilized → Canceled),
-// just reorder this array — `value` is the only thing that has to match
-// the layer's coded values exactly.
+// the same way as the form. Colors are in the same family as the
+// related Arcade symbology, with En Route and Canceled nudged to
+// darker shades so they're visually distinct from On Hold / Demobilized.
 export const COLUMNS = [
-  { id: 'onscene',     label: 'On Scene',    value: 'On Scene',    accent: '#059669' },
-  { id: 'onhold',      label: 'On Hold',     value: 'On Hold',     accent: '#d97706' },
-  { id: 'staged',      label: 'Staged',      value: 'Staged',      accent: '#0891b2' },
-  { id: 'demobilized', label: 'Demobilized', value: 'Demobilized', accent: '#374151' },
+  { id: 'onscene',     label: 'On Scene',    value: 'On Scene',    accent: '#228B22' },
+  { id: 'onhold',      label: 'On Hold',     value: 'On Hold',     accent: '#45C8ED' },
+  { id: 'staged',      label: 'Staged',      value: 'Staged',      accent: '#FCFF00' },
+  { id: 'demobilized', label: 'Demobilized', value: 'Demobilized', accent: '#ADADAD' },
   { id: 'enroute',     label: 'En Route',    value: 'En Route',    accent: '#2563eb' },
-  { id: 'canceled',    label: 'Canceled',    value: 'Canceled',    accent: '#dc2626' },
+  { id: 'canceled',    label: 'Canceled',    value: 'Canceled',    accent: '#6b7280' },
 ];
 
 // Map a status string from the service back to a column id (case-insensitive,

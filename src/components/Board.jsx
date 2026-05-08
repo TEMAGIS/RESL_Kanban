@@ -13,7 +13,7 @@ import { COLUMNS, FIELDS, CONFIG, statusToColumnId } from '../config.js';
 import { fetchAllResources, fetchLayerMeta, updateStatus, updateAttributes } from '../service.js';
 import Column from './Column.jsx';
 import Card from './Card.jsx';
-import { MainFilters, ToolbarSearch, SortToggle } from './FilterBar.jsx';
+import { MainFilters, SortToggle, ColumnToggles } from './FilterBar.jsx';
 import Brand from './Brand.jsx';
 import DetailModal from './DetailModal.jsx';
 
@@ -213,9 +213,6 @@ export default function Board({ onSignOut }) {
         resources={resources}
         filters={filters}
         onFilters={setFilters}
-        hiddenColumns={hiddenColumns}
-        onToggleColumn={toggleColumn}
-        onResetColumns={resetColumns}
       />
 
       {loading && !resources.length ? (
@@ -239,7 +236,11 @@ export default function Board({ onSignOut }) {
               {error && <span className="error-pill">{error}</span>}
             </div>
             <SortToggle sortBy={sortBy} onSortBy={setSortBy} />
-            <ToolbarSearch filters={filters} onFilters={setFilters} />
+            <ColumnToggles
+              hiddenColumns={hiddenColumns}
+              onToggleColumn={toggleColumn}
+              onResetColumns={resetColumns}
+            />
           </div>
 
           <DndContext

@@ -16,16 +16,8 @@ function uniques(rows, key) {
 }
 
 // ─── Main filters row (row 2) ───────────────────────────────────────
-//  Dropdowns + Columns + Clear. Clear only resets the four dropdowns;
-//  Columns has its own "Show all" link. Sort lives in the toolbar.
-export function MainFilters({
-  resources,
-  filters,
-  onFilters,
-  hiddenColumns,
-  onToggleColumn,
-  onResetColumns,
-}) {
+//  Dropdowns + Search (flex-extends to the right) + Clear.
+export function MainFilters({ resources, filters, onFilters }) {
   const missions = useMemo(() => uniques(resources, 'mission_id_rpt'), [resources]);
   const esfs     = useMemo(() => uniques(resources, 'coordinator'),    [resources]);
   const counties = useMemo(() => uniques(resources, 'county_rpt'),     [resources]);
@@ -37,13 +29,12 @@ export function MainFilters({
     (filters.mission ? 1 : 0) +
     (filters.esf     ? 1 : 0) +
     (filters.county  ? 1 : 0) +
-    (filters.kind    ? 1 : 0);
+    (filters.kind    ? 1 : 0) +
+    (filters.search  ? 1 : 0);
 
   const clearFilters = () => {
-    onFilters({ ...filters, mission: '', esf: '', county: '', kind: '' });
+    onFilters({ mission: '', esf: '', county: '', kind: '', search: '' });
   };
-
-  const anyHidden = hiddenColumns.size > 0;
 
   return (
     <div className="main-filters">
@@ -51,37 +42,16 @@ export function MainFilters({
       <Select label="Coordinating ESF" value={filters.esf}     options={esfs}     onChange={(v) => set({ esf: v })} />
       <Select label="Kind"             value={filters.kind}    options={kinds}    onChange={(v) => set({ kind: v })} />
       <Select label="County"           value={filters.county}  options={counties} onChange={(v) => set({ county: v })} />
-
-      <div className="column-toggles">
-        <span className="muted small">Columns:</span>
-        {COLUMNS.map((c) => {
-          const hidden = hiddenColumns.has(c.id);
-          return (
-            <button
-              key={c.id}
-              type="button"
-              className={`column-toggle${hidden ? ' is-off' : ''}`}
-              style={{ '--toggle-accent': c.accent }}
-              onClick={() => onToggleColumn(c.id)}
-              title={hidden ? `Show ${c.label}` : `Hide ${c.label}`}
-            >
-              <span className="column-toggle-dot" />
-              {c.label}
-            </button>
-          );
-        })}
-        {anyHidden && (
-          <button
-            type="button"
-            className="link-btn"
-            onClick={onResetColumns}
-            title="Show all columns"
-          >
-            Show all
-          </button>
-        )}
-      </div>
-
+      <label className="filter-select filter-select--search">
+        <span className="muted small">Search</span>
+        <input
+          className="filter-search"
+          type="search"
+          placeholder="Tag, item, requestor…"
+          value={filters.search}
+          onChange={(e) => set({ search: e.target.value })}
+        />
+      </label>
       {activeCount > 0 && (
         <button className="btn btn-ghost btn-sm clear-btn" onClick={clearFilters}>
           Clear ({activeCount})
@@ -91,7 +61,7 @@ export function MainFilters({
   );
 }
 
-// ─── Sort toggle (toolbar row, between count info and search) ──────
+// ─── Sort toggle (toolbar row, between count info and columns) ──────
 export function SortToggle({ sortBy, onSortBy }) {
   return (
     <div className="sort-toggle" role="group" aria-label="Sort cards by">
@@ -116,19 +86,39 @@ export function SortToggle({ sortBy, onSortBy }) {
   );
 }
 
-// ─── Search box (lives in the toolbar row, beside the count) ─────────
-export function ToolbarSearch({ filters, onFilters }) {
+// ─── Column toggles (toolbar row, after sort) ───────────────────────
+export function ColumnToggles({ hiddenColumns, onToggleColumn, onResetColumns }) {
+  const anyHidden = hiddenColumns.size > 0;
   return (
-    <label className="toolbar-search">
-      <span className="muted small">Search</span>
-      <input
-        className="filter-search"
-        type="search"
-        placeholder="Tag, item, requestor…"
-        value={filters.search}
-        onChange={(e) => onFilters({ ...filters, search: e.target.value })}
-      />
-    </label>
+    <div className="column-toggles">
+      <span className="muted small">Columns:</span>
+      {COLUMNS.map((c) => {
+        const hidden = hiddenColumns.has(c.id);
+        return (
+          <button
+            key={c.id}
+            type="button"
+            className={`column-toggle${hidden ? ' is-off' : ''}`}
+            style={{ '--toggle-accent': c.accent }}
+            onClick={() => onToggleColumn(c.id)}
+            title={hidden ? `Show ${c.label}` : `Hide ${c.label}`}
+          >
+            <span className="column-toggle-dot" />
+            {c.label}
+          </button>
+        );
+      })}
+      {anyHidden && (
+        <button
+          type="button"
+          className="link-btn"
+          onClick={onResetColumns}
+          title="Show all columns"
+        >
+          Show all
+        </button>
+      )}
+    </div>
   );
 }
 
