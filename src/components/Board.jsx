@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -13,14 +13,47 @@ import { COLUMNS, FIELDS, CONFIG, statusToColumnId } from '../config.js';
 import { fetchAllResources, fetchLayerMeta, updateStatus } from '../service.js';
 import Column from './Column.jsx';
 import Card from './Card.jsx';
+import FilterBar from './FilterBar.jsx';
+
+const EMPTY_FILTERS = { mission: '', esf: '', county: '', kind: '', search: '' };
+
+// Search hits across these fields (case-insensitive substring).
+const SEARCHABLE = [
+  'request_number_rpt', 'mission_id_rpt', 'mission_detail_rpt',
+  'tag_number', 'item', 'make', 'serial', 'identifier',
+  'equipment', 'equipment_type', 'team_kind',
+  'entity_rpt', 'requestor_rpt', 'requesting_entity_rpt',
+  'county_rpt', 'region_rpt', 'coordinator',
+  'resource_main', 'resource_type',
+];
+
+function rowMatches(r, f) {
+  if (f.mission && String(r.mission_id_rpt || '') !== f.mission) return false;
+  if (f.esf     && String(r.coordinator   || '') !== f.esf)     return false;
+  if (f.county  && String(r.county_rpt    || '') !== f.county)  return false;
+  if (f.kind    && String(r.resource_kind || '') !== f.kind)    return false;
+  if (f.search) {
+    const q = f.search.toLowerCase();
+    let hit = false;
+    for (const k of SEARCHABLE) {
+      const v = r[k];
+      if (v == null) continue;
+      if (String(v).toLowerCase().includes(q)) { hit = true; break; }
+    }
+    if (!hit) return false;
+  }
+  return true;
+}
 
 export default function Board() {
-  const [resources, setResources] = useState([]);   // attribute objects
-  const [loading, setLoading]     = useState(true);
-  const [error,   setError]       = useState('');
-  const [activeId, setActiveId]   = useState(null);
-  const [pending, setPending]     = useState(() => new Set()); // OBJECTIDs mid-update
+  const [resources, setResources]   = useState([]);
+  const [loading,   setLoading]     = useState(true);
+  const [error,     setError]       = useState('');
+  const [activeId,  setActiveId]    = useState(null);
+  const [pending,   setPending]     = useState(() => new Set());
   const [lastRefresh, setLastRefresh] = useState(null);
+  const [filters,   setFilters]     = useState(EMPTY_FILTERS);
+  const [hiddenColumns, setHiddenColumns] = useState(() => new Set());
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -51,22 +84,34 @@ export default function Board() {
     return () => clearInterval(id);
   }, [refresh]);
 
-  // Group resources by column id ------------------------------------------
+  // Apply filters first, then group by column ----------------------------
+  const filtered = useMemo(
+    () => resources.filter((r) => rowMatches(r, filters)),
+    [resources, filters],
+  );
+
   const grouped = useMemo(() => {
     const out = { _unassigned: [] };
     for (const c of COLUMNS) out[c.id] = [];
-    for (const r of resources) {
+    for (const r of filtered) {
       const col = statusToColumnId(r[FIELDS.status]);
       (out[col] || out._unassigned).push(r);
     }
     return out;
-  }, [resources]);
+  }, [filtered]);
 
   const activeResource = activeId
     ? resources.find((r) => String(r[FIELDS.objectId]) === activeId)
     : null;
 
-  // Drag handlers ----------------------------------------------------------
+  const toggleColumn = (id) =>
+    setHiddenColumns((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+
+  // Drag handlers --------------------------------------------------------
   const handleDragStart = (event) => setActiveId(String(event.active.id));
 
   const handleDragEnd = async (event) => {
@@ -80,14 +125,9 @@ export default function Board() {
     if (!current) return;
     if (statusToColumnId(current[FIELDS.status]) === targetCol.id) return;
 
-    // Optimistic local update — snapshot for rollback
     const previous = current[FIELDS.status];
     setResources((rs) =>
-      rs.map((r) =>
-        r[FIELDS.objectId] === oid
-          ? { ...r, [FIELDS.status]: targetCol.value }
-          : r,
-      ),
+      rs.map((r) => (r[FIELDS.objectId] === oid ? { ...r, [FIELDS.status]: targetCol.value } : r)),
     );
     setPending((p) => new Set(p).add(oid));
 
@@ -96,13 +136,8 @@ export default function Board() {
     } catch (err) {
       console.error('updateStatus failed:', err);
       setError(`Could not update OBJECTID ${oid}: ${err.message}`);
-      // Roll back
       setResources((rs) =>
-        rs.map((r) =>
-          r[FIELDS.objectId] === oid
-            ? { ...r, [FIELDS.status]: previous }
-            : r,
-        ),
+        rs.map((r) => (r[FIELDS.objectId] === oid ? { ...r, [FIELDS.status]: previous } : r)),
       );
     } finally {
       setPending((p) => {
@@ -113,7 +148,6 @@ export default function Board() {
     }
   };
 
-  // Render -----------------------------------------------------------------
   if (loading && !resources.length) {
     return (
       <div className="boot-screen">
@@ -125,16 +159,25 @@ export default function Board() {
 
   return (
     <div className="board-wrap">
+      <FilterBar
+        resources={resources}
+        filters={filters}
+        onFilters={setFilters}
+        hiddenColumns={hiddenColumns}
+        onToggleColumn={toggleColumn}
+      />
+
       <div className="board-toolbar">
         <div>
-          <strong>{resources.length}</strong> resource
-          {resources.length === 1 ? '' : 's'}
-          {lastRefresh && (
-            <span className="muted small">
-              {' · last updated '}
-              {lastRefresh.toLocaleTimeString()}
-            </span>
+          <strong>{filtered.length}</strong>
+          {filtered.length !== resources.length && (
+            <span className="muted small"> of {resources.length}</span>
           )}
+          <span className="muted small">
+            {' '}
+            resource{filtered.length === 1 ? '' : 's'}
+            {lastRefresh && ` · last updated ${lastRefresh.toLocaleTimeString()}`}
+          </span>
         </div>
         <div className="toolbar-right">
           {error && <span className="error-pill">{error}</span>}
@@ -162,7 +205,7 @@ export default function Board() {
               droppable={false}
             />
           )}
-          {COLUMNS.map((c) => (
+          {COLUMNS.filter((c) => !hiddenColumns.has(c.id)).map((c) => (
             <Column
               key={c.id}
               id={c.id}

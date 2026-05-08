@@ -46,23 +46,58 @@ export const CONFIG = {
 };
 
 // ============================================================================
-//  FIELD MAPPING — adjust to match the layer's actual schema. The status
-//  field is the only one the Kanban writes to. If you don't know the exact
-//  name yet, leave the placeholders and the in-app diagnostics panel will
-//  print the available fields to the browser console on first load.
+//  FIELD MAPPING — matched to Mobilization_MCC_Tracking_Resource_Repeat_View
+//  (FeatureServer layer 1). Pulled from the Survey123 form definition.
+//  Only `status` (drag-drop writes here) and `objectId` (row identity) are
+//  strictly required; everything else degrades gracefully if blank/missing.
 // ============================================================================
 export const FIELDS = {
-  objectId:    'OBJECTID',
-  // -- Display fields shown on each card -----------------------------------
-  // The board falls back gracefully if any of these don't exist on the layer
-  // — it just shows whatever IS present. Update once you confirm the schema.
-  resourceName: 'resource_name',     // primary label
-  resourceType: 'resource_type',     // sub-label
-  agency:       'agency',
-  contact:      'contact_name',
-  phone:        'contact_phone',
-  // -- Status field the Kanban writes to -----------------------------------
-  status:       'status',            // <-- confirm this against /FeatureServer/1?f=json
+  objectId:        'objectid',
+
+  // -- Header / identity ---------------------------------------------------
+  requestNumber:   'request_number_rpt',   // "#312"
+  missionId:       'mission_id_rpt',       // Mission Name
+  missionDetail:   'mission_detail_rpt',
+  missionNumber:   'mission_number_rpt',
+  missionYear:     'mission_year_rpt',
+
+  // -- Resource description -----------------------------------------------
+  kind:            'resource_kind',        // "Equipment" / "Team"
+  resourceType:    'resource_type',
+  resourceMain:    'resource_main',
+  // Equipment-specific
+  equipmentName:   'equipment',
+  equipmentType:   'equipment_type',
+  equipmentCount:  'equipment_count',
+  // Team / Personnel
+  teamKind:        'team_kind',
+  personnelCount:  'personnel_count',
+  identifier:      'identifier',           // Personnel or Team Name
+  // Tagged inventory
+  tagNumber:       'tag_number',
+  item:            'item',
+  qtyItem:         'qty_item',
+  make:            'make',
+  serial:          'serial',
+
+  // -- Ownership / requesting -------------------------------------------
+  entity:          'entity_rpt',           // operating entity
+  requestor:       'requestor_rpt',
+  requestingEntity:'requesting_entity_rpt',
+  esf:             'coordinator',          // Coordinating ESF (select_one esf_list)
+
+  // -- Location -----------------------------------------------------------
+  county:          'county_rpt',
+  region:          'region_rpt',
+
+  // -- Mobilization status & timing --------------------------------------
+  daysDeployed:    'days_deployed',
+  expectedDays:    'expected_days_deployed',
+  expectedArrival: 'expected_arrival',
+  editDate:        'EditDate',
+
+  // -- Status (Kanban writes here) ---------------------------------------
+  status:          'item_status',
 };
 
 // ============================================================================
