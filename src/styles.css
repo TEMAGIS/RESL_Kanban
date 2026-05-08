@@ -42,10 +42,10 @@ button { font-family: inherit; cursor: pointer; }
   gap: 14px;
   flex-wrap: wrap;
 }
-.app-header--with-filters .brand { flex: 0 0 auto; }
-.app-header--with-filters .header-filters {
-  flex: 1 1 auto;
-  min-width: 0;
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .brand {
   display: flex;
@@ -155,15 +155,18 @@ button { font-family: inherit; cursor: pointer; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 18px;
+  padding: 8px 14px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   font-size: 13px;
+  gap: 12px;
+  flex-wrap: wrap;
 }
-.toolbar-right {
+.toolbar-info {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 .error-pill {
   background: #fef2f2;
@@ -553,8 +556,11 @@ button { font-family: inherit; cursor: pointer; }
 .modal-edit-status { font-style: italic; }
 .error-text { color: var(--danger); }
 
-/* ─── Header filters (top row, beside brand) ─────────────────────────── */
-.header-filters {
+/* ─── Main filters (second row: dropdowns + search + clear) ─────────── */
+.main-filters {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 14px;
   display: flex;
   flex-wrap: wrap;
   align-items: end;
@@ -576,27 +582,28 @@ button { font-family: inherit; cursor: pointer; }
   min-width: 140px;
   max-width: 240px;
 }
-
-/* ─── Filter bar (second row: column toggles + search) ──────────────── */
-.filter-bar {
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  padding: 8px 14px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
+/* The search input lives inside a .filter-select so its label aligns
+   with the dropdown labels. The input itself flexes to fill remaining
+   horizontal room. */
+.filter-select--search { flex: 1 1 220px; min-width: 200px; }
 .filter-search {
-  flex: 1;
-  min-width: 180px;
-  margin-left: auto;
   font-family: inherit;
   font-size: 13px;
-  padding: 6px 10px;
+  padding: 5px 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: #fff;
+  width: 100%;
+}
+.clear-btn { align-self: end; margin-bottom: 1px; }
+
+/* ─── Board controls (in toolbar: column toggles + sort) ────────────── */
+.board-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
 }
 .column-toggles {
   display: flex;

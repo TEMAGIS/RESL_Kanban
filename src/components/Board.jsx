@@ -13,7 +13,7 @@ import { COLUMNS, FIELDS, CONFIG, statusToColumnId } from '../config.js';
 import { fetchAllResources, fetchLayerMeta, updateStatus, updateAttributes } from '../service.js';
 import Column from './Column.jsx';
 import Card from './Card.jsx';
-import { HeaderFilters, ColumnFilters } from './FilterBar.jsx';
+import { MainFilters, BoardControls } from './FilterBar.jsx';
 import Brand from './Brand.jsx';
 import DetailModal from './DetailModal.jsx';
 
@@ -199,25 +199,22 @@ export default function Board({ onSignOut }) {
 
   return (
     <div className="app-shell">
-      <header className="app-header app-header--with-filters">
+      <header className="app-header">
         <Brand />
-        <HeaderFilters
-          resources={resources}
-          filters={filters}
-          onFilters={setFilters}
-          hiddenColumns={hiddenColumns}
-          onResetColumns={resetColumns}
-        />
-        <button className="btn btn-ghost" onClick={onSignOut}>Sign out</button>
+        <div className="header-actions">
+          <button className="btn btn-ghost" onClick={refresh} disabled={loading}>
+            {loading ? 'Refreshing…' : 'Refresh'}
+          </button>
+          <button className="btn btn-ghost" onClick={onSignOut}>Sign out</button>
+        </div>
       </header>
 
-      <ColumnFilters
+      <MainFilters
+        resources={resources}
         filters={filters}
         onFilters={setFilters}
         hiddenColumns={hiddenColumns}
-        onToggleColumn={toggleColumn}
-        sortBy={sortBy}
-        onSortBy={setSortBy}
+        onResetColumns={resetColumns}
       />
 
       {loading && !resources.length ? (
@@ -228,7 +225,7 @@ export default function Board({ onSignOut }) {
       ) : (
         <>
           <div className="board-toolbar">
-            <div>
+            <div className="toolbar-info">
               <strong>{filtered.length}</strong>
               {filtered.length !== resources.length && (
                 <span className="muted small"> of {resources.length}</span>
@@ -238,13 +235,14 @@ export default function Board({ onSignOut }) {
                 resource{filtered.length === 1 ? '' : 's'}
                 {lastRefresh && ` · last updated ${lastRefresh.toLocaleTimeString()}`}
               </span>
-            </div>
-            <div className="toolbar-right">
               {error && <span className="error-pill">{error}</span>}
-              <button className="btn btn-ghost" onClick={refresh} disabled={loading}>
-                {loading ? 'Refreshing…' : 'Refresh'}
-              </button>
             </div>
+            <BoardControls
+              hiddenColumns={hiddenColumns}
+              onToggleColumn={toggleColumn}
+              sortBy={sortBy}
+              onSortBy={setSortBy}
+            />
           </div>
 
           <DndContext

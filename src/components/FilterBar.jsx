@@ -15,9 +15,9 @@ function uniques(rows, key) {
   );
 }
 
-// ─── Header row: dropdowns + clear ────────────────────────────────────
-// Renders inline in the app header alongside the brand and sign-out btn.
-export function HeaderFilters({
+// ─── Main filter row: dropdowns + search + clear ────────────────────
+// Sits between the app header and the board toolbar.
+export function MainFilters({
   resources,
   filters,
   onFilters,
@@ -45,13 +45,23 @@ export function HeaderFilters({
   };
 
   return (
-    <div className="header-filters">
+    <div className="main-filters">
       <Select label="Mission"          value={filters.mission} options={missions} onChange={(v) => set({ mission: v })} />
       <Select label="Coordinating ESF" value={filters.esf}     options={esfs}     onChange={(v) => set({ esf: v })} />
       <Select label="Kind"             value={filters.kind}    options={kinds}    onChange={(v) => set({ kind: v })} />
       <Select label="County"           value={filters.county}  options={counties} onChange={(v) => set({ county: v })} />
+      <label className="filter-select filter-select--search">
+        <span className="muted small">Search</span>
+        <input
+          className="filter-search"
+          type="search"
+          placeholder="Tag, item, requestor…"
+          value={filters.search}
+          onChange={(e) => set({ search: e.target.value })}
+        />
+      </label>
       {activeCount > 0 && (
-        <button className="btn btn-ghost btn-sm" onClick={clearAll}>
+        <button className="btn btn-ghost btn-sm clear-btn" onClick={clearAll}>
           Clear ({activeCount})
         </button>
       )}
@@ -59,17 +69,15 @@ export function HeaderFilters({
   );
 }
 
-// ─── Secondary row: column toggles + sort + search ──────────────────
-export function ColumnFilters({
-  filters,
-  onFilters,
+// ─── Board controls: column toggles + sort (lives in the toolbar) ───
+export function BoardControls({
   hiddenColumns,
   onToggleColumn,
   sortBy,
   onSortBy,
 }) {
   return (
-    <div className="filter-bar">
+    <div className="board-controls">
       <div className="column-toggles">
         <span className="muted small">Columns:</span>
         {COLUMNS.map((c) => {
@@ -108,13 +116,6 @@ export function ColumnFilters({
           Request #
         </button>
       </div>
-      <input
-        className="filter-search"
-        type="search"
-        placeholder="Search…"
-        value={filters.search}
-        onChange={(e) => onFilters({ ...filters, search: e.target.value })}
-      />
     </div>
   );
 }
