@@ -360,33 +360,50 @@ button { font-family: inherit; cursor: pointer; }
   container-type: inline-size;
 }
 
-/* ─── Freshness highlight ───────────────────────────────────────────
-   Cards whose EditDate falls within the last hour or earlier today get
-   a soft amber accent. The "hour" tier also gets a slow pulse so the
-   eye catches it across the board. */
-.card.is-fresh-today {
-  background: linear-gradient(180deg, #fffbeb 0%, #ffffff 60%);
-  border-left-color: #f59e0b;
-}
+/* ─── Freshness / staleness highlights ───────────────────────────────
+   Blue = recently updated.  Amber = active deployment that has gone
+   stale (not edited in 72+ hours). */
+
+/* Edited within the last 60 min — strong blue + pulse */
 .card.is-fresh-hour {
-  background: linear-gradient(180deg, #fef3c7 0%, #fffbeb 70%);
-  border-left-color: #ea580c;
+  background: linear-gradient(180deg, #dbeafe 0%, #eff6ff 70%);
+  border-left-color: #2563eb;
   animation: fresh-pulse 2.6s ease-in-out infinite;
 }
 @keyframes fresh-pulse {
-  0%, 100% { box-shadow: var(--shadow), 0 0 0 0 rgba(234, 88, 12, 0); }
-  50%      { box-shadow: var(--shadow), 0 0 0 3px rgba(234, 88, 12, 0.18); }
+  0%, 100% { box-shadow: var(--shadow), 0 0 0 0 rgba(37, 99, 235, 0); }
+  50%      { box-shadow: var(--shadow), 0 0 0 3px rgba(37, 99, 235, 0.20); }
 }
-.card-updated.is-fresh-today { color: #92400e; font-weight: 500; }
-.card-updated.is-fresh-hour  { color: #c2410c; font-weight: 600; }
-.fresh-dot {
+
+/* Edited earlier today — soft blue */
+.card.is-fresh-today {
+  background: linear-gradient(180deg, #eff6ff 0%, #ffffff 60%);
+  border-left-color: #3b82f6;
+}
+
+/* Active deployment but not edited in 72+ hours — needs attention */
+.card.is-stale {
+  background: linear-gradient(180deg, #fffbeb 0%, #ffffff 60%);
+  border-left-color: #d97706;
+}
+
+.card-updated.is-fresh-hour  { color: #1e40af; font-weight: 600; }
+.card-updated.is-fresh-today { color: #1d4ed8; font-weight: 500; }
+.card-updated.is-stale       { color: #92400e; font-weight: 500; }
+
+.fresh-dot, .stale-dot {
   display: inline-block;
   width: 7px; height: 7px;
   border-radius: 50%;
-  background: #ea580c;
   margin-right: 4px;
   vertical-align: 1px;
+}
+.fresh-dot {
+  background: #2563eb;
   animation: fresh-dot-pulse 1.4s ease-in-out infinite;
+}
+.stale-dot {
+  background: #d97706;
 }
 @keyframes fresh-dot-pulse {
   0%, 100% { opacity: 1;   transform: scale(1);   }
