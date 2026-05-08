@@ -27,6 +27,35 @@ const SEARCHABLE = [
   'resource_main', 'resource_type',
 ];
 
+// Sort comparators ----------------------------------------------------
+// Most recent EditDate first; missing → end.
+function cmpUpdated(a, b) {
+  const av = Number(a.EditDate);
+  const bv = Number(b.EditDate);
+  const ag = Number.isFinite(av) && av > 0;
+  const bg = Number.isFinite(bv) && bv > 0;
+  if (!ag && !bg) return 0;
+  if (!ag) return 1;
+  if (!bg) return -1;
+  return bv - av;
+}
+// Lowest request_number_rpt first (numeric when possible); missing → end.
+function cmpRequest(a, b) {
+  const av = parseFloat(a.request_number_rpt);
+  const bv = parseFloat(b.request_number_rpt);
+  const ag = Number.isFinite(av);
+  const bg = Number.isFinite(bv);
+  if (!ag && !bg) {
+    return String(a.request_number_rpt || '').localeCompare(
+      String(b.request_number_rpt || ''),
+      undefined, { numeric: true, sensitivity: 'base' },
+    );
+  }
+  if (!ag) return 1;
+  if (!bg) return -1;
+  return av - bv;
+}
+
 function rowMatches(r, f) {
   if (f.mission && String(r.mission_id_rpt || '') !== f.mission) return false;
   if (f.esf     && String(r.coordinator   || '') !== f.esf)     return false;
@@ -54,6 +83,7 @@ export default function Board({ onSignOut }) {
   const [lastRefresh,  setLastRefresh]   = useState(null);
   const [filters,      setFilters]       = useState(EMPTY_FILTERS);
   const [hiddenColumns, setHiddenColumns] = useState(() => new Set());
+  const [sortBy,       setSortBy]        = useState('updated'); // 'updated' | 'request'
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -95,8 +125,13 @@ export default function Board({ onSignOut }) {
       const col = statusToColumnId(r[FIELDS.status]);
       (out[col] || out._unassigned).push(r);
     }
+    // Sort each column's cards. 'updated' = most recent first;
+    // 'request' = lowest request number first. Missing values land at
+    // the end either way.
+    const cmp = sortBy === 'request' ? cmpRequest : cmpUpdated;
+    for (const k of Object.keys(out)) out[k].sort(cmp);
     return out;
-  }, [filtered]);
+  }, [filtered, sortBy]);
 
   const activeResource = activeId
     ? resources.find((r) => String(r[FIELDS.objectId]) === activeId)
@@ -165,6 +200,8 @@ export default function Board({ onSignOut }) {
         onFilters={setFilters}
         hiddenColumns={hiddenColumns}
         onToggleColumn={toggleColumn}
+        sortBy={sortBy}
+        onSortBy={setSortBy}
       />
 
       {loading && !resources.length ? (

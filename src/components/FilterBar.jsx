@@ -59,12 +59,14 @@ export function HeaderFilters({
   );
 }
 
-// ─── Secondary row: column toggles + search ──────────────────────────
+// ─── Secondary row: column toggles + sort + search ──────────────────
 export function ColumnFilters({
   filters,
   onFilters,
   hiddenColumns,
   onToggleColumn,
+  sortBy,
+  onSortBy,
 }) {
   return (
     <div className="filter-bar">
@@ -86,6 +88,25 @@ export function ColumnFilters({
             </button>
           );
         })}
+      </div>
+      <div className="sort-toggle" role="group" aria-label="Sort cards by">
+        <span className="muted small">Sort:</span>
+        <button
+          type="button"
+          className={`seg-btn${sortBy === 'updated' ? ' is-on' : ''}`}
+          onClick={() => onSortBy('updated')}
+          title="Most recently edited at top"
+        >
+          Updated
+        </button>
+        <button
+          type="button"
+          className={`seg-btn${sortBy === 'request' ? ' is-on' : ''}`}
+          onClick={() => onSortBy('request')}
+          title="Lowest request number at top"
+        >
+          Request #
+        </button>
       </div>
       <input
         className="filter-search"

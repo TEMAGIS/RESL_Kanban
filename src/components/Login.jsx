@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react';
 import { startOAuthFlow, isInIframe, prepareAuthorizeUrl } from '../auth.js';
+import TnBadge from './TnBadge.jsx';
 
 export default function Login({ error, onClearError }) {
   const [fallbackUrl, setFallbackUrl] = useState('');
   const embedded = isInIframe();
 
-  // Pre-build the authorize URL when embedded so the "Open in a new tab"
-  // anchor is a real <a href=...> at click time — which dodges popup
-  // blockers (anchor target=_blank is exempt).
   useEffect(() => {
     if (!embedded) return;
     prepareAuthorizeUrl()
@@ -18,9 +16,12 @@ export default function Login({ error, onClearError }) {
   return (
     <div className="login-screen">
       <div className="login-card">
-        <h1>Sign in</h1>
+        <div className="login-brand">
+          <TnBadge size={64} />
+          <h1>Resource Deployment Kanban</h1>
+        </div>
         <p className="muted">
-          Connect with your ArcGIS Online account to view and assign deployed
+          Sign in with your ArcGIS Online account to view and assign deployed
           resources.
         </p>
         <button

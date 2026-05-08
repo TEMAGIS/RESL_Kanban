@@ -54,10 +54,9 @@ button { font-family: inherit; cursor: pointer; }
   font-weight: 600;
   font-size: 15px;
 }
-.brand-dot {
-  width: 18px; height: 18px;
-  border-radius: 4px;
-  background: linear-gradient(135deg, #0b5fa5 0%, #29a37a 50%, #d97706 100%);
+.brand .tn-badge {
+  border-radius: 3px;
+  flex-shrink: 0;
 }
 
 /* ─── Buttons ────────────────────────────────────────────────────────── */
@@ -123,6 +122,17 @@ button { font-family: inherit; cursor: pointer; }
   flex-direction: column;
   gap: 14px;
   text-align: center;
+}
+.login-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.login-brand .tn-badge {
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, .15);
 }
 .login-card h1 { margin: 0; font-size: 22px; font-weight: 600; }
 .login-error {
@@ -412,3 +422,33 @@ button { font-family: inherit; cursor: pointer; }
   background: var(--toggle-accent);
 }
 .column-toggle.is-off .column-toggle-dot { background: #c7d0dc; }
+
+.sort-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.sort-toggle .seg-btn {
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 9px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text);
+  cursor: pointer;
+}
+.sort-toggle .seg-btn:first-of-type {
+  border-radius: 6px 0 0 6px;
+}
+.sort-toggle .seg-btn:last-of-type {
+  border-radius: 0 6px 6px 0;
+  border-left: none;
+}
+.sort-toggle .seg-btn.is-on {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.sort-toggle .seg-btn:hover:not(.is-on) { background: #f6f8fb; }
