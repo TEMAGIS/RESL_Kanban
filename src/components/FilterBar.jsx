@@ -47,7 +47,8 @@ export function MainFilters({ resources, filters, onFilters }) {
         <input
           className="filter-search"
           type="search"
-          placeholder="Tag, item, requestor…"
+          placeholder="Tag, item, requestor… (#5 for request)"
+          title="Type # followed by a request number (e.g. #5) to search by request number only"
           value={filters.search}
           onChange={(e) => set({ search: e.target.value })}
         />

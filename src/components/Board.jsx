@@ -63,7 +63,19 @@ function rowMatches(r, f) {
   if (f.county  && String(r.county_rpt    || '') !== f.county)  return false;
   if (f.kind    && String(r.resource_kind || '') !== f.kind)    return false;
   if (f.search) {
-    const q = f.search.toLowerCase();
+    const raw = f.search.trim();
+
+    // `#NNN` shortcut: exact match against the request number field.
+    // Bare `#` is treated as no filter so the user isn't surprised by
+    // an empty board while they're still typing.
+    if (raw.startsWith('#')) {
+      const num = raw.slice(1).toLowerCase();
+      if (num === '') return true;
+      const reqNum = String(r.request_number_rpt || '').toLowerCase();
+      return reqNum === num;
+    }
+
+    const q = raw.toLowerCase();
     let hit = false;
     for (const k of SEARCHABLE) {
       const v = r[k];
