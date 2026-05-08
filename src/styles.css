@@ -638,6 +638,19 @@ button { font-family: inherit; cursor: pointer; }
   background: var(--toggle-accent);
 }
 .column-toggle.is-off .column-toggle-dot { background: #c7d0dc; }
+.link-btn {
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  background: transparent;
+  border: 0;
+  color: var(--primary);
+  padding: 3px 6px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.link-btn:hover { color: var(--primary-d); }
 
 .sort-toggle {
   display: inline-flex;

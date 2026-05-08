@@ -213,8 +213,6 @@ export default function Board({ onSignOut }) {
         resources={resources}
         filters={filters}
         onFilters={setFilters}
-        hiddenColumns={hiddenColumns}
-        onResetColumns={resetColumns}
       />
 
       {loading && !resources.length ? (
@@ -240,6 +238,7 @@ export default function Board({ onSignOut }) {
             <BoardControls
               hiddenColumns={hiddenColumns}
               onToggleColumn={toggleColumn}
+              onResetColumns={resetColumns}
               sortBy={sortBy}
               onSortBy={setSortBy}
             />

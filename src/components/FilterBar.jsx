@@ -16,14 +16,10 @@ function uniques(rows, key) {
 }
 
 // ─── Main filter row: dropdowns + search + clear ────────────────────
-// Sits between the app header and the board toolbar.
-export function MainFilters({
-  resources,
-  filters,
-  onFilters,
-  hiddenColumns,
-  onResetColumns,
-}) {
+// Sits between the app header and the board toolbar. Clear button
+// resets ONLY the row-2 controls (filters + search). Hidden columns
+// have their own "Show all" reset on row 3.
+export function MainFilters({ resources, filters, onFilters }) {
   const missions = useMemo(() => uniques(resources, 'mission_id_rpt'), [resources]);
   const esfs     = useMemo(() => uniques(resources, 'coordinator'),    [resources]);
   const counties = useMemo(() => uniques(resources, 'county_rpt'),     [resources]);
@@ -36,12 +32,10 @@ export function MainFilters({
     (filters.esf     ? 1 : 0) +
     (filters.county  ? 1 : 0) +
     (filters.kind    ? 1 : 0) +
-    (filters.search  ? 1 : 0) +
-    (hiddenColumns.size > 0 ? 1 : 0);
+    (filters.search  ? 1 : 0);
 
-  const clearAll = () => {
+  const clearFilters = () => {
     onFilters({ mission: '', esf: '', county: '', kind: '', search: '' });
-    onResetColumns && onResetColumns();
   };
 
   return (
@@ -61,7 +55,7 @@ export function MainFilters({
         />
       </label>
       {activeCount > 0 && (
-        <button className="btn btn-ghost btn-sm clear-btn" onClick={clearAll}>
+        <button className="btn btn-ghost btn-sm clear-btn" onClick={clearFilters}>
           Clear ({activeCount})
         </button>
       )}
@@ -73,30 +67,13 @@ export function MainFilters({
 export function BoardControls({
   hiddenColumns,
   onToggleColumn,
+  onResetColumns,
   sortBy,
   onSortBy,
 }) {
+  const anyHidden = hiddenColumns.size > 0;
   return (
     <div className="board-controls">
-      <div className="column-toggles">
-        <span className="muted small">Columns:</span>
-        {COLUMNS.map((c) => {
-          const hidden = hiddenColumns.has(c.id);
-          return (
-            <button
-              key={c.id}
-              type="button"
-              className={`column-toggle${hidden ? ' is-off' : ''}`}
-              style={{ '--toggle-accent': c.accent }}
-              onClick={() => onToggleColumn(c.id)}
-              title={hidden ? `Show ${c.label}` : `Hide ${c.label}`}
-            >
-              <span className="column-toggle-dot" />
-              {c.label}
-            </button>
-          );
-        })}
-      </div>
       <div className="sort-toggle" role="group" aria-label="Sort cards by">
         <span className="muted small">Sort:</span>
         <button
@@ -115,6 +92,35 @@ export function BoardControls({
         >
           Request #
         </button>
+      </div>
+      <div className="column-toggles">
+        <span className="muted small">Columns:</span>
+        {COLUMNS.map((c) => {
+          const hidden = hiddenColumns.has(c.id);
+          return (
+            <button
+              key={c.id}
+              type="button"
+              className={`column-toggle${hidden ? ' is-off' : ''}`}
+              style={{ '--toggle-accent': c.accent }}
+              onClick={() => onToggleColumn(c.id)}
+              title={hidden ? `Show ${c.label}` : `Hide ${c.label}`}
+            >
+              <span className="column-toggle-dot" />
+              {c.label}
+            </button>
+          );
+        })}
+        {anyHidden && (
+          <button
+            type="button"
+            className="link-btn"
+            onClick={onResetColumns}
+            title="Show all columns"
+          >
+            Show all
+          </button>
+        )}
       </div>
     </div>
   );
