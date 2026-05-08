@@ -50,12 +50,14 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          # Vite picks these up at build time. Override either by editing
-          # this file or (preferably) by setting them as repository
-          # variables/secrets and referencing them as ${{ vars.NAME }}.
-          # Leaving them unset falls back to the defaults in src/config.js.
-          VITE_CLIENT_ID:    ${{ vars.VITE_CLIENT_ID }}
-          VITE_SERVICE_URL:  ${{ vars.VITE_SERVICE_URL }}
+          # Asset base path: `/<repo-name>/` so built URLs are absolute
+          # and survive being loaded with or without a trailing slash.
+          VITE_BASE_PATH:   /${{ github.event.repository.name }}/
+          # Optional overrides — leave unset to use defaults in
+          # src/config.js. Set as repository variables (Settings →
+          # Secrets and variables → Actions → Variables).
+          VITE_CLIENT_ID:   ${{ vars.VITE_CLIENT_ID }}
+          VITE_SERVICE_URL: ${{ vars.VITE_SERVICE_URL }}
           # VITE_REDIRECT_URI is auto-detected from window.location at
           # runtime, so you usually don't need to set it here.
 
