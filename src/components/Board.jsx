@@ -202,9 +202,6 @@ export default function Board({ onSignOut }) {
       <header className="app-header">
         <Brand />
         <div className="header-actions">
-          <button className="btn btn-ghost" onClick={refresh} disabled={loading}>
-            {loading ? 'Refreshing…' : 'Refresh'}
-          </button>
           <button className="btn btn-ghost" onClick={onSignOut}>Sign out</button>
         </div>
       </header>
@@ -241,6 +238,9 @@ export default function Board({ onSignOut }) {
               onToggleColumn={toggleColumn}
               onResetColumns={resetColumns}
             />
+            <button className="btn btn-ghost toolbar-refresh" onClick={refresh} disabled={loading}>
+              {loading ? 'Refreshing…' : 'Refresh'}
+            </button>
           </div>
 
           <DndContext

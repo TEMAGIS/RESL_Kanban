@@ -154,7 +154,6 @@ button { font-family: inherit; cursor: pointer; }
 .board-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   padding: 8px 14px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
@@ -168,6 +167,7 @@ button { font-family: inherit; cursor: pointer; }
   gap: 8px;
   flex-wrap: wrap;
 }
+.toolbar-refresh { margin-left: auto; }
 .error-pill {
   background: #fef2f2;
   color: #991b1b;
