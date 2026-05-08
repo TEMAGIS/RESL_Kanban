@@ -1,14 +1,33 @@
 import { useEffect, useState } from 'react';
 import { FIELDS, MISSION_TYPES } from '../config.js';
 
-// Pretty-print an epoch ms field. Returns null if missing/invalid.
-function fmtDate(v) {
+// Pretty-print a date+time field (epoch ms). Used for fields like
+// EditDate / CreationDate / expected_arrival.
+function fmtDateTime(v) {
   if (v == null || v === '') return null;
   const n = Number(v);
   if (!Number.isFinite(n) || n <= 0) return null;
   const d = new Date(n);
   if (Number.isNaN(d.getTime())) return null;
   return d.toLocaleString();
+}
+
+// Pretty-print a date-only field (epoch ms). AGOL stores date-only
+// fields like item_mobilization / item_demobilization at UTC midnight;
+// rendering with `timeZone: 'UTC'` keeps the displayed date matching
+// what the user actually picked, regardless of their local timezone.
+function fmtDate(v) {
+  if (v == null || v === '') return null;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const d = new Date(n);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString(undefined, {
+    timeZone: 'UTC',
+    month: 'numeric',
+    day: 'numeric',
+    year: 'numeric',
+  });
 }
 
 const has = (v) => {
@@ -186,7 +205,7 @@ export default function DetailModal({ r, onClose, onUpdate }) {
           <Section title="Status & Timing" rows={[
             { label: 'Status',             value: r.item_status },
             { label: 'Mobilization date',  value: fmtDate(r.item_mobilization) },
-            { label: 'Expected arrival',   value: fmtDate(r.expected_arrival) },
+            { label: 'Expected arrival',   value: fmtDateTime(r.expected_arrival) },
             { label: 'Demobilization',     value: fmtDate(r.item_demobilization) },
             { label: 'Days deployed',      value: r.days_deployed },
             { label: 'Expected days',      value: r.expected_days_deployed },
@@ -198,9 +217,9 @@ export default function DetailModal({ r, onClose, onUpdate }) {
           ]} />
 
           <Section title="Audit" rows={[
-            { label: 'Created',  value: fmtDate(r.CreationDate) },
+            { label: 'Created',  value: fmtDateTime(r.CreationDate) },
             { label: 'Creator',  value: r.Creator },
-            { label: 'Edited',   value: fmtDate(r.EditDate) },
+            { label: 'Edited',   value: fmtDateTime(r.EditDate) },
             { label: 'Editor',   value: r.Editor },
             { label: 'OBJECTID', value: r.objectid },
             { label: 'GlobalID', value: r.globalid },

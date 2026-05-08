@@ -154,20 +154,34 @@ export default function Board({ onSignOut }) {
     const { active, over } = event;
     if (!over) return;
     const oid = Number(active.id);
-    const targetCol = COLUMNS.find((c) => c.id === over.id);
-    if (!targetCol) return;
     const current = resources.find((r) => r[FIELDS.objectId] === oid);
     if (!current) return;
-    if (statusToColumnId(current[FIELDS.status]) === targetCol.id) return;
+
+    // Translate the drop target into a column id and the value to write.
+    // Dropping on Unassigned clears the status — useful as an "undo" for
+    // a wrong drop.
+    let targetColId;
+    let newStatus;
+    if (over.id === '_unassigned') {
+      targetColId = '_unassigned';
+      newStatus   = null;
+    } else {
+      const targetCol = COLUMNS.find((c) => c.id === over.id);
+      if (!targetCol) return;
+      targetColId = targetCol.id;
+      newStatus   = targetCol.value;
+    }
+
+    if (statusToColumnId(current[FIELDS.status]) === targetColId) return;
 
     const previous = current[FIELDS.status];
     setResources((rs) =>
-      rs.map((r) => (r[FIELDS.objectId] === oid ? { ...r, [FIELDS.status]: targetCol.value } : r)),
+      rs.map((r) => (r[FIELDS.objectId] === oid ? { ...r, [FIELDS.status]: newStatus } : r)),
     );
     setPending((p) => new Set(p).add(oid));
 
     try {
-      await updateStatus(oid, targetCol.value);
+      await updateStatus(oid, newStatus);
     } catch (err) {
       console.error('updateStatus failed:', err);
       setError(`Could not update OBJECTID ${oid}: ${err.message}`);
@@ -241,17 +255,16 @@ export default function Board({ onSignOut }) {
             onDragCancel={() => setActiveId(null)}
           >
             <div className="board">
-              {grouped._unassigned.length > 0 && (
-                <Column
-                  id="_unassigned"
-                  label="Unassigned"
-                  accent="#ef4444"
-                  resources={grouped._unassigned}
-                  pending={pending}
-                  droppable={false}
-                  onShowDetail={setDetailRow}
-                />
-              )}
+              <Column
+                id="_unassigned"
+                label="Unassigned"
+                accent="#94a3b8"
+                resources={grouped._unassigned}
+                pending={pending}
+                droppable
+                onShowDetail={setDetailRow}
+                hint="Drop here to clear status"
+              />
               {COLUMNS.filter((c) => !hiddenColumns.has(c.id)).map((c) => (
                 <Column
                   key={c.id}
