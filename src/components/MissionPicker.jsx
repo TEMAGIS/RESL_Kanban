@@ -59,28 +59,34 @@ export default function MissionPicker({ resources, loading, onPick }) {
             </p>
           </div>
         ) : (
-          <div className="mission-list" role="list">
-            {missions.map((m) => (
-              <button
-                key={m.name}
-                type="button"
-                className="mission-row"
-                role="listitem"
-                onClick={() => onPick(m.name)}
-              >
-                <div className="mission-name">{m.name}</div>
-                <div className="mission-meta muted small">
-                  <span><strong>{m.count}</strong> resource{m.count === 1 ? '' : 's'}</span>
-                  {m.latestEdit > 0 && (
-                    <>
-                      <span className="dot">·</span>
-                      <span>{fmtRelative(m.latestEdit)}</span>
-                    </>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
+          <>
+            <div className="mission-list" role="list">
+              {missions.map((m) => (
+                <button
+                  key={m.name}
+                  type="button"
+                  className="mission-row"
+                  role="listitem"
+                  onClick={() => onPick(m.name)}
+                >
+                  <div className="mission-name">{m.name}</div>
+                  <div className="mission-meta muted small">
+                    <span><strong>{m.count}</strong> resource{m.count === 1 ? '' : 's'}</span>
+                    {m.latestEdit > 0 && (
+                      <>
+                        <span className="dot">·</span>
+                        <span>{fmtRelative(m.latestEdit)}</span>
+                      </>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+            <p className="picker-note muted small">
+              Don't see the mission you're looking for? Missions only appear
+              here once at least one resource has been deployed for them.
+            </p>
+          </>
         )}
       </div>
     </div>

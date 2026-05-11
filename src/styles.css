@@ -168,6 +168,15 @@ button { font-family: inherit; cursor: pointer; }
 }
 .picker-empty strong { display: block; margin-bottom: 6px; }
 .picker-empty p { margin: 0; }
+.picker-note {
+  margin: 16px 0 0;
+  padding: 10px 12px;
+  background: #f6f9fd;
+  border: 1px solid #e3e7ee;
+  border-radius: 6px;
+  font-style: italic;
+  line-height: 1.4;
+}
 
 /* ─── Login ──────────────────────────────────────────────────────────── */
 .login-screen {
