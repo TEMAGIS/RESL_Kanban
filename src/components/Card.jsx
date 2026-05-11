@@ -2,15 +2,16 @@ import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { FIELDS } from '../config.js';
 
-export default function Card({ r, pending = false, dragging = false, onShowDetail }) {
+export default function Card({ r, pending = false, dragging = false, readOnly = false, onShowDetail }) {
   if (dragging) return <CardView r={r} pending={pending} dragging />;
-  return <DraggableCard r={r} pending={pending} onShowDetail={onShowDetail} />;
+  return <DraggableCard r={r} pending={pending} readOnly={readOnly} onShowDetail={onShowDetail} />;
 }
 
-function DraggableCard({ r, pending, onShowDetail }) {
+function DraggableCard({ r, pending, readOnly, onShowDetail }) {
   const oid = r[FIELDS.objectId];
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: String(oid),
+    disabled: readOnly,
   });
   const style = {
     transform: CSS.Translate.toString(transform),

@@ -73,9 +73,20 @@ function EditableSelectRow({ label, value, options, field, objectId, onUpdate })
   const [saving, setSaving] = useState(false);
   const [err,    setErr]    = useState('');
 
+  // No onUpdate ⇒ read-only mode. Render the value as plain text the
+  // same way a normal Row does, instead of a disabled-looking select.
+  if (!onUpdate) {
+    if (!has(value)) return null;
+    return (
+      <div className="modal-row">
+        <dt>{label}</dt>
+        <dd>{String(value)}</dd>
+      </div>
+    );
+  }
+
   const handleChange = async (e) => {
     const newVal = e.target.value || null;
-    if (!onUpdate) return;
     setErr('');
     setSaving(true);
     try {
@@ -102,7 +113,7 @@ function EditableSelectRow({ label, value, options, field, objectId, onUpdate })
           className="modal-edit-select"
           value={display}
           onChange={handleChange}
-          disabled={saving || !onUpdate}
+          disabled={saving}
         >
           {/* Blank option (no "Select" label) so the dropdown opens
               showing the existing value, not a CTA. The blank entry is

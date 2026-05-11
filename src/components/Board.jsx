@@ -24,6 +24,17 @@ const EMPTY_FILTERS = { mission: '', esf: '', county: '', kind: '', search: '' }
 // always user-editable.
 const LOCKABLE_FILTERS = ['mission', 'esf', 'county', 'kind'];
 
+// Read-only mode: `?readonly=1` (or true/yes) disables drag-drop and
+// hides editable controls in the detail modal. Useful for embedding a
+// safe public-or-stakeholder view that can't accidentally mutate data.
+function readUrlReadOnly() {
+  if (typeof window === 'undefined') return false;
+  const v = new URLSearchParams(window.location.search).get('readonly');
+  if (!v) return false;
+  const s = v.trim().toLowerCase();
+  return s === '1' || s === 'true' || s === 'yes' || s === 'on';
+}
+
 // Read URL parameters once at boot. Any LOCKABLE_FILTER key present
 // in `?mission=...&esf=...` becomes both the initial value AND a
 // locked filter the user can't change in-session. Allows sharing or
@@ -151,6 +162,7 @@ export default function Board({ onSignOut }) {
   const [hiddenColumns, setHiddenColumns] = useState(() => new Set());
   const [sortBy,       setSortBy]        = useState('updated'); // 'updated' | 'request'
   const [detailRow,    setDetailRow]     = useState(null);
+  const [readOnly]     = useState(() => readUrlReadOnly());
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -233,6 +245,7 @@ export default function Board({ onSignOut }) {
   const handleDragStart = (event) => setActiveId(String(event.active.id));
   const handleDragEnd = async (event) => {
     setActiveId(null);
+    if (readOnly) return;                  // never write in read-only mode
     const { active, over } = event;
     if (!over) return;
     const oid = Number(active.id);
@@ -291,6 +304,11 @@ export default function Board({ onSignOut }) {
     <div className="app-shell">
       <header className="app-header">
         <Brand />
+        {readOnly && (
+          <span className="readonly-chip" title="View-only mode — drag-drop and edits are disabled">
+            🔒 Read-only
+          </span>
+        )}
         <div className="header-actions">
           <button className="btn btn-ghost" onClick={onSignOut}>Sign out</button>
         </div>
@@ -372,6 +390,7 @@ export default function Board({ onSignOut }) {
                 resources={grouped._unassigned}
                 pending={pending}
                 droppable
+                readOnly={readOnly}
                 onShowDetail={setDetailRow}
                 hint="Drop here to clear status"
               />
@@ -384,6 +403,7 @@ export default function Board({ onSignOut }) {
                   resources={grouped[c.id] || []}
                   pending={pending}
                   droppable
+                  readOnly={readOnly}
                   onShowDetail={setDetailRow}
                 />
               ))}
@@ -400,7 +420,7 @@ export default function Board({ onSignOut }) {
       <DetailModal
         r={detailRow}
         onClose={() => setDetailRow(null)}
-        onUpdate={async (objectId, partial) => {
+        onUpdate={readOnly ? undefined : async (objectId, partial) => {
           // Snapshot the old values (including EditDate) for rollback
           const before = resources.find((row) => row[FIELDS.objectId] === objectId);
           if (!before) throw new Error('Row not found');
