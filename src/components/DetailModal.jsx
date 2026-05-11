@@ -298,12 +298,10 @@ export default function DetailModal({ r, onClose, onUpdate }) {
           ]} />
 
           <Section title="Audit" rows={[
-            { label: 'Created',  value: fmtDateTime(r.CreationDate) },
-            { label: 'Creator',  value: r.Creator },
-            { label: 'Edited',   value: fmtDateTime(r.EditDate) },
-            { label: 'Editor',   value: r.Editor },
-            { label: 'OBJECTID', value: r.objectid },
-            { label: 'GlobalID', value: r.globalid },
+            { label: 'Created', value: fmtDateTime(r.CreationDate) },
+            { label: 'Creator', value: r.Creator },
+            { label: 'Edited',  value: fmtDateTime(r.EditDate) },
+            { label: 'Editor',  value: r.Editor },
           ]} />
         </div>
         )}
@@ -397,12 +395,10 @@ function MccTabBody({ state }) {
       ]} />
 
       <Section title="Audit" rows={[
-        { label: 'Created',  value: fmtDateTime(m[f.creationDate]) },
-        { label: 'Creator',  value: m[f.creator] },
-        { label: 'Edited',   value: fmtDateTime(m[f.editDate]) },
-        { label: 'Editor',   value: m[f.editor] },
-        { label: 'ObjectID', value: m[f.objectId] },
-        { label: 'GlobalID', value: m[f.globalId] },
+        { label: 'Created', value: fmtDateTime(m[f.creationDate]) },
+        { label: 'Creator', value: m[f.creator] },
+        { label: 'Edited',  value: fmtDateTime(m[f.editDate]) },
+        { label: 'Editor',  value: m[f.editor] },
       ]} />
     </div>
   );

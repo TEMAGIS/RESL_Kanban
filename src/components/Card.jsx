@@ -125,7 +125,6 @@ function CardView({ r, pending, style, dragging = false, forwardRef, handleProps
   const edit      = describeEditDate(r[FIELDS.editDate], r[FIELDS.status]);
   const entity    = v(r, FIELDS.entity);
   const esf       = v(r, FIELDS.esf);
-  const mission   = v(r, FIELDS.missionId);
   const { qtyLine, nameLine } = describeResource(r);
 
   // Click handler that explicitly does NOT propagate to the dnd-kit
@@ -180,7 +179,6 @@ function CardView({ r, pending, style, dragging = false, forwardRef, handleProps
       </div>
       <div className="card-footer">
         {esf     && <span className="card-chip">ESF · {esf}</span>}
-        {mission && <span className="card-chip">{mission}</span>}
         {pending && <span className="card-pending">Saving…</span>}
       </div>
     </div>

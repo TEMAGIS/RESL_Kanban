@@ -29,8 +29,10 @@ export function MainFilters({ resources, filters, onFilters, lockedFilters = new
   const set = (patch) => onFilters({ ...filters, ...patch });
   const isLocked = (key) => lockedFilters.has(key);
 
+  // Mission is required (picker enforces it) and isn't counted or
+  // cleared — users intentionally choose a mission and shouldn't have
+  // it stripped by a generic Clear button.
   const activeCount =
-    (filters.mission && !isLocked('mission') ? 1 : 0) +
     (filters.esf     && !isLocked('esf')     ? 1 : 0) +
     (filters.county  && !isLocked('county')  ? 1 : 0) +
     (filters.kind    && !isLocked('kind')    ? 1 : 0) +
@@ -39,11 +41,10 @@ export function MainFilters({ resources, filters, onFilters, lockedFilters = new
   const clearFilters = () => {
     onFilters({
       ...filters,
-      mission: isLocked('mission') ? filters.mission : '',
-      esf:     isLocked('esf')     ? filters.esf     : '',
-      kind:    isLocked('kind')    ? filters.kind    : '',
-      county:  isLocked('county')  ? filters.county  : '',
-      search:  '',
+      esf:    isLocked('esf')    ? filters.esf    : '',
+      kind:   isLocked('kind')   ? filters.kind   : '',
+      county: isLocked('county') ? filters.county : '',
+      search: '',
     });
   };
 
