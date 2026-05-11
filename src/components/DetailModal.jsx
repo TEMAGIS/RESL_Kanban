@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FIELDS, MISSION_TYPES, MCC_SERVICE } from '../config.js';
 import { fetchMccRequest } from '../service.js';
 
@@ -126,6 +126,11 @@ export default function DetailModal({ r, onClose, onUpdate }) {
   // and forth doesn't re-fetch.
   const [mccState, setMccState] = useState({ status: 'idle', data: null, error: '' });
 
+  // Tracks which row.objectid we've already started a fetch for. Stored
+  // in a ref (not state) so triggering it doesn't re-run effects and
+  // cause the cleanup-cancels-fetch race that left the spinner stuck.
+  const mccFetchedFor = useRef(null);
+
   // ESC closes the modal
   useEffect(() => {
     if (!r) return;
@@ -134,33 +139,38 @@ export default function DetailModal({ r, onClose, onUpdate }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [r, onClose]);
 
-  // Reset tab + MCC cache whenever a different row is shown.
+  // Reset tab + MCC cache whenever a different row is shown (or modal closes).
   useEffect(() => {
     setActiveTab('resource');
     setMccState({ status: 'idle', data: null, error: '' });
+    mccFetchedFor.current = null;
   }, [r && r.objectid]);
 
-  // Lazy-load the MCC record the first time the user opens the tab.
+  // Lazy-load the MCC record the first time the user opens the tab for
+  // this row. No cleanup/cancel flag — the fetch always completes; we
+  // just check the ref before applying the result to make sure the row
+  // hasn't been swapped out from under us.
   useEffect(() => {
     if (!r) return;
     if (activeTab !== 'mcc') return;
-    if (mccState.status !== 'idle') return;
-    let cancelled = false;
+    const myToken = r.objectid;
+    if (mccFetchedFor.current === myToken) return;   // already attempted
+    mccFetchedFor.current = myToken;
+
     setMccState({ status: 'loading', data: null, error: '' });
     fetchMccRequest({
       requestNumber: r.request_number_rpt,
       missionId:     r.mission_id_rpt,
     })
       .then((data) => {
-        if (cancelled) return;
+        if (mccFetchedFor.current !== myToken) return; // row changed mid-flight
         setMccState({ status: data ? 'loaded' : 'empty', data: data || null, error: '' });
       })
       .catch((err) => {
-        if (cancelled) return;
+        if (mccFetchedFor.current !== myToken) return;
         setMccState({ status: 'error', data: null, error: err.message || String(err) });
       });
-    return () => { cancelled = true; };
-  }, [activeTab, r, mccState.status]);
+  }, [activeTab, r]);
 
   if (!r) return null;
 

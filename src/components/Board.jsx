@@ -194,6 +194,14 @@ export default function Board({ onSignOut }) {
     [resources, filters],
   );
 
+  // Denominator for "X of Y resources" — only counts resources in the
+  // currently-selected mission (not the entire feature service), so the
+  // total feels meaningful relative to what's actually shown.
+  const missionTotal = useMemo(() => {
+    if (!filters.mission) return resources.length;
+    return resources.filter((r) => n(r.mission_id_rpt) === n(filters.mission)).length;
+  }, [resources, filters.mission]);
+
   const grouped = useMemo(() => {
     const out = { _unassigned: [] };
     for (const c of COLUMNS) out[c.id] = [];
@@ -319,8 +327,8 @@ export default function Board({ onSignOut }) {
             />
             <div className="toolbar-info">
               <strong>{filtered.length}</strong>
-              {filtered.length !== resources.length && (
-                <span className="muted small"> of {resources.length}</span>
+              {filtered.length !== missionTotal && (
+                <span className="muted small"> of {missionTotal}</span>
               )}
               <span className="muted small">
                 {' '}
