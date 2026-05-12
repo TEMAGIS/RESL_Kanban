@@ -304,12 +304,18 @@ export default function Board({ onSignOut }) {
     <div className="app-shell">
       <header className="app-header">
         <Brand />
-        {readOnly && (
-          <span className="readonly-chip" title="View-only mode — drag-drop and edits are disabled">
-            🔒 Read-only
-          </span>
+        {filters.mission && (
+          <div className="header-mission" title={filters.mission}>
+            <span className="muted small">Mission</span>
+            <span className="header-mission-name">{filters.mission}</span>
+          </div>
         )}
         <div className="header-actions">
+          {readOnly && (
+            <span className="readonly-chip" title="View-only mode — drag-drop and edits are disabled">
+              🔒 Read-only
+            </span>
+          )}
           <button className="btn btn-ghost" onClick={onSignOut}>Sign out</button>
         </div>
       </header>

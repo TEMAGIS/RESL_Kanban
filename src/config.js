@@ -121,6 +121,29 @@ export const FIELDS = {
 //  Carries the original county request that the deployment fulfills.
 //  Surfaced as a separate tab in the detail modal.
 // ============================================================================
+// ============================================================================
+//  FOLLOWUP service — many-to-one with each resource. Each followup row
+//  has mcc_number_text (matches request_number_rpt) and mission (matches
+//  mission_id_rpt). Surfaced as the Followups tab in the detail modal.
+// ============================================================================
+export const FOLLOWUP_SERVICE = {
+  url: import.meta.env.VITE_FOLLOWUP_URL ||
+       'https://services1.arcgis.com/kILp9lqGUeOhnDbI/ArcGIS/rest/services/MCC_Followup/FeatureServer/0',
+  fields: {
+    objectId:       'objectid',
+    requestNumber:  'mcc_number_text',     // join key → request_number_rpt
+    mission:        'mission',             // join key → mission_id_rpt
+    entryDate:      'entrydate',           // timestamp of the followup
+    data:           'Followup_data',       // long-form note
+    updatedBy:      'updated_by',
+    updatingAgency: 'updating_agency',
+    username:       'Username',
+    positionName:   'positionname',
+    phone:          'updating_phone',
+    email:          'updating_email',
+  },
+};
+
 export const MCC_SERVICE = {
   url: 'https://services1.arcgis.com/kILp9lqGUeOhnDbI/ArcGIS/rest/services/MCCStatusMapper2/FeatureServer/0',
   fields: {

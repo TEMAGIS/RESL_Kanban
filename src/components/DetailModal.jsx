@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { FIELDS, MISSION_TYPES, MCC_SERVICE } from '../config.js';
-import { fetchMccRequest } from '../service.js';
+import { FIELDS, MISSION_TYPES, MCC_SERVICE, FOLLOWUP_SERVICE } from '../config.js';
+import { fetchMccRequest, fetchFollowups } from '../service.js';
 
 // Pretty-print a date+time field (epoch ms). Used for fields like
 // EditDate / CreationDate / expected_arrival.
@@ -131,16 +131,15 @@ function EditableSelectRow({ label, value, options, field, objectId, onUpdate })
 }
 
 export default function DetailModal({ r, onClose, onUpdate }) {
-  const [activeTab, setActiveTab] = useState('resource'); // 'resource' | 'mcc'
+  const [activeTab, setActiveTab] = useState('resource'); // 'resource' | 'mcc' | 'followups'
 
-  // MCC tab state. Cached on the modal instance so switching tabs back
-  // and forth doesn't re-fetch.
+  // MCC tab state (single record).
   const [mccState, setMccState] = useState({ status: 'idle', data: null, error: '' });
-
-  // Tracks which row.objectid we've already started a fetch for. Stored
-  // in a ref (not state) so triggering it doesn't re-run effects and
-  // cause the cleanup-cancels-fetch race that left the spinner stuck.
   const mccFetchedFor = useRef(null);
+
+  // Followups tab state (array of records).
+  const [fuState, setFuState] = useState({ status: 'idle', data: [], error: '' });
+  const fuFetchedFor = useRef(null);
 
   // ESC closes the modal
   useEffect(() => {
@@ -150,11 +149,13 @@ export default function DetailModal({ r, onClose, onUpdate }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [r, onClose]);
 
-  // Reset tab + MCC cache whenever a different row is shown (or modal closes).
+  // Reset tab + caches whenever a different row is shown (or modal closes).
   useEffect(() => {
     setActiveTab('resource');
     setMccState({ status: 'idle', data: null, error: '' });
+    setFuState({ status: 'idle', data: [], error: '' });
     mccFetchedFor.current = null;
+    fuFetchedFor.current = null;
   }, [r && r.objectid]);
 
   // Lazy-load the MCC record the first time the user opens the tab for
@@ -180,6 +181,30 @@ export default function DetailModal({ r, onClose, onUpdate }) {
       .catch((err) => {
         if (mccFetchedFor.current !== myToken) return;
         setMccState({ status: 'error', data: null, error: err.message || String(err) });
+      });
+  }, [activeTab, r]);
+
+  // Same lazy-load pattern for the Followups tab — fetch on first open
+  // per row, cache in state, guard with a ref.
+  useEffect(() => {
+    if (!r) return;
+    if (activeTab !== 'followups') return;
+    const myToken = r.objectid;
+    if (fuFetchedFor.current === myToken) return;
+    fuFetchedFor.current = myToken;
+
+    setFuState({ status: 'loading', data: [], error: '' });
+    fetchFollowups({
+      requestNumber: r.request_number_rpt,
+      missionId:     r.mission_id_rpt,
+    })
+      .then((data) => {
+        if (fuFetchedFor.current !== myToken) return;
+        setFuState({ status: data.length ? 'loaded' : 'empty', data, error: '' });
+      })
+      .catch((err) => {
+        if (fuFetchedFor.current !== myToken) return;
+        setFuState({ status: 'error', data: [], error: err.message || String(err) });
       });
   }, [activeTab, r]);
 
@@ -226,10 +251,22 @@ export default function DetailModal({ r, onClose, onUpdate }) {
           >
             MCC Request
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'followups'}
+            className={`modal-tab${activeTab === 'followups' ? ' is-active' : ''}`}
+            onClick={() => setActiveTab('followups')}
+            title="Follow-up notes tied to this request"
+          >
+            Followups
+          </button>
         </div>
 
         {activeTab === 'mcc' ? (
           <MccTabBody state={mccState} />
+        ) : activeTab === 'followups' ? (
+          <FollowupsTabBody state={fuState} />
         ) : (
         <div className="modal-body">
           <Section title="Resource" rows={[
@@ -400,6 +437,91 @@ function MccTabBody({ state }) {
         { label: 'Edited',  value: fmtDateTime(m[f.editDate]) },
         { label: 'Editor',  value: m[f.editor] },
       ]} />
+    </div>
+  );
+}
+
+// ─── Followups tab body ──────────────────────────────────────────────
+// Renders an ordered list (most recent first) of followup entries. Each
+// entry shows a timestamp + author header, the followup body text, and
+// a small contact footer.
+function FollowupsTabBody({ state }) {
+  if (state.status === 'idle' || state.status === 'loading') {
+    return (
+      <div className="modal-body modal-loading">
+        <div className="spinner" />
+        <p className="muted small">Loading followups…</p>
+      </div>
+    );
+  }
+  if (state.status === 'error') {
+    return (
+      <div className="modal-body">
+        <div className="empty-banner">
+          <strong>Couldn't load followups.</strong>
+          <div className="muted small">{state.error}</div>
+        </div>
+      </div>
+    );
+  }
+  if (state.status === 'empty' || state.data.length === 0) {
+    return (
+      <div className="modal-body">
+        <div className="picker-empty">
+          <strong>No followups yet.</strong>
+          <p className="muted small">
+            No followup entries are tied to this request number and
+            mission yet. New followups added in the upstream form will
+            appear here.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const f = FOLLOWUP_SERVICE.fields;
+  return (
+    <div className="modal-body">
+      <div className="muted small followups-count">
+        {state.data.length} followup{state.data.length === 1 ? '' : 's'}
+      </div>
+      <ol className="followups-list">
+        {state.data.map((fu) => {
+          const when     = fmtDateTime(fu[f.entryDate]);
+          const author   = fu[f.username] || fu[f.updatedBy] || '—';
+          const position = fu[f.positionName];
+          const agency   = fu[f.updatingAgency];
+          const phone    = fu[f.phone];
+          const email    = fu[f.email];
+          const body     = fu[f.data];
+          return (
+            <li key={fu[f.objectId]} className="followup-card">
+              <header className="followup-head">
+                <div className="followup-author">
+                  <strong>{author}</strong>
+                  {position && <span className="muted small">{position}</span>}
+                  {agency   && <span className="muted small">{agency}</span>}
+                </div>
+                {when && <time className="followup-time muted small">{when}</time>}
+              </header>
+              {body && <div className="followup-body">{String(body)}</div>}
+              {(email || phone) && (
+                <div className="followup-contact muted small">
+                  {email && (
+                    <a href={`mailto:${email}`}>{email}</a>
+                  )}
+                  {email && phone && <span className="dot">·</span>}
+                  {phone && (
+                    <a href={`tel:${String(phone).replace(/[^+\d]/g, '')}`}>
+                      {phone}
+                    </a>
+                  )}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ol>
     </div>
   );
 }

@@ -3,7 +3,7 @@
 //  on every request and silently refreshes once on a 498/499 response.
 // ============================================================================
 
-import { CONFIG, FIELDS, MCC_SERVICE } from './config.js';
+import { CONFIG, FIELDS, MCC_SERVICE, FOLLOWUP_SERVICE } from './config.js';
 import { getToken, ensureFreshToken, clearStoredToken } from './auth.js';
 
 async function arcgisFetch(url, init, _retried) {
@@ -155,4 +155,33 @@ export async function fetchMccRequest({ requestNumber, missionId }) {
   if (feats.length === 0) return null;
   // If multiple records match (shouldn't happen), surface the first.
   return feats[0].attributes;
+}
+
+// ─── Followups service ─────────────────────────────────────────────
+// Many-to-one with each resource. Matches mcc_number_text and mission.
+// Returns an array of attribute objects sorted newest-first by
+// entrydate. Empty array if no followups.
+export async function fetchFollowups({ requestNumber, missionId }) {
+  if (requestNumber == null || requestNumber === '' || !missionId) return [];
+
+  await ensureFreshToken();
+  const TOKEN = getToken();
+
+  const f = FOLLOWUP_SERVICE.fields;
+  const safeReq = String(requestNumber).replace(/'/g, "''");
+  const safeMis = String(missionId).replace(/'/g, "''");
+  const where =
+    `${f.requestNumber} = '${safeReq}' ` +
+    `AND ${f.mission} = '${safeMis}'`;
+
+  const params = new URLSearchParams({
+    where,
+    outFields:      '*',
+    returnGeometry: 'false',
+    orderByFields:  `${f.entryDate} DESC`,
+    f:              'json',
+    token:          TOKEN.accessToken,
+  });
+  const data = await arcgisFetch(`${FOLLOWUP_SERVICE.url}/query?${params}`);
+  return (data.features || []).map((feat) => feat.attributes);
 }
