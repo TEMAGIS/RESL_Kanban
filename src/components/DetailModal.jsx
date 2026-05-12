@@ -2,15 +2,23 @@ import { useEffect, useRef, useState } from 'react';
 import { FIELDS, MISSION_TYPES, MCC_SERVICE, FOLLOWUP_SERVICE } from '../config.js';
 import { fetchMccRequest, fetchFollowups } from '../service.js';
 
-// Pretty-print a date+time field (epoch ms). Used for fields like
-// EditDate / CreationDate / expected_arrival.
+// Pretty-print a date+time field. Handles both:
+//   • numeric epoch ms (the usual AGOL date type)
+//   • ISO date strings (some fields like the Followups `entrydate` are
+//     stored as `esriFieldTypeString`)
+// Falls back to the raw string if neither parse works.
 function fmtDateTime(v) {
   if (v == null || v === '') return null;
+  // Numeric path
   const n = Number(v);
-  if (!Number.isFinite(n) || n <= 0) return null;
-  const d = new Date(n);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleString();
+  if (Number.isFinite(n) && n > 0) {
+    const d = new Date(n);
+    if (!Number.isNaN(d.getTime())) return d.toLocaleString();
+  }
+  // String path
+  const d2 = new Date(String(v));
+  if (!Number.isNaN(d2.getTime())) return d2.toLocaleString();
+  return String(v);
 }
 
 // Pretty-print a date-only field (epoch ms). AGOL stores date-only
@@ -499,10 +507,9 @@ function FollowupsTabBody({ state }) {
               <header className="followup-head">
                 <div className="followup-author">
                   <strong>{author}</strong>
+                  {when     && <span className="muted small">{when}</span>}
                   {position && <span className="muted small">{position}</span>}
-                  {agency   && <span className="muted small">{agency}</span>}
                 </div>
-                {when && <time className="followup-time muted small">{when}</time>}
               </header>
               {body && <div className="followup-body">{String(body)}</div>}
               {(email || phone) && (
