@@ -1,6 +1,6 @@
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import { FIELDS } from '../config.js';
+import { COLUMNS, FIELDS, statusToColumnId } from '../config.js';
 
 export default function Card({ r, pending = false, dragging = false, readOnly = false, onShowDetail }) {
   if (dragging) return <CardView r={r} pending={pending} dragging />;
@@ -90,29 +90,13 @@ function describeEditDate(ms, status) {
   return { text: formatted, tier: null };
 }
 
-// Light pluralization — adds the right suffix when count != 1. Not
-// linguistically perfect (won't handle "Mouse → Mice"), but covers the
-// equipment-type noun shapes we see in this data ("Generator → Generators",
-// "Light Tower → Light Towers", "Wrench → Wrenches"). Words that
-// already end in `s` are left alone so we don't double-pluralize.
-function pluralize(noun, count) {
-  if (count === 1) return noun;
-  const s = String(noun).trim();
-  const lower = s.toLowerCase();
-  if (/s$/.test(lower))             return s;
-  if (/[^aeiou]y$/.test(lower))     return s.slice(0, -1) + 'ies';
-  if (/(x|z|ch|sh)$/.test(lower))   return s + 'es';
-  return s + 's';
-}
-
 // Given a row, return { qtyLine, nameLine } describing its quantity and
-// resource name. Phrasing pivots on the resource_kind so the card reads
-// naturally: "15 Generators" / "1 Generator" for equipment, "5 personnel"
-// / "1 team" for teams.
+// resource name. Mirrors the previous TEMA dashboard format:
+//   "Equipment: 14" / "Personnel: 10" with the type-name on a second line.
 function describeResource(r) {
   const kind   = (v(r, FIELDS.kind) || '').toLowerCase();
   const equipN = v(r, FIELDS.equipmentName) || v(r, FIELDS.equipmentType);
-  const equipQ = v(r, FIELDS.equipmentCount);
+  const equipQ = v(r, FIELDS.equipmentCount) || v(r, FIELDS.qtyItem);
   const teamN  = v(r, FIELDS.identifier) || v(r, FIELDS.teamKind);
   const persQ  = v(r, FIELDS.personnelCount);
   const itemN  = v(r, FIELDS.item) || v(r, FIELDS.tagNumber);
@@ -122,28 +106,48 @@ function describeResource(r) {
   // 1) Tagged inventory: item + qty_item, when present
   if (itemN && itemQ) return { qtyLine: `Item: ${itemQ}`, nameLine: itemN };
 
-  // 2) Equipment — combine count + (pluralized) name into one line.
+  // 2) Equipment — "Equipment: N" with the equipment name below.
   if (kind.includes('equip') || equipN || equipQ) {
     const n = equipQ != null ? parseInt(equipQ, 10) : NaN;
-    const hasCount = Number.isFinite(n) && n > 0;
-    if (hasCount && equipN) {
-      return { qtyLine: `${n} ${pluralize(equipN, n)}`, nameLine: '' };
-    }
-    if (hasCount) {
-      return { qtyLine: `${n} equipment`, nameLine: fallbk };
+    if (Number.isFinite(n) && n > 0) {
+      return { qtyLine: `Equipment: ${n}`, nameLine: equipN || fallbk };
     }
     return { qtyLine: 'Equipment', nameLine: equipN || fallbk };
   }
 
-  // 3) Team / Personnel — "5 personnel" when > 1, "1 team" otherwise.
+  // 3) Team / Personnel — "Personnel: N" with the team kind below.
   if (kind.includes('team') || teamN || persQ) {
     const n = persQ != null ? parseInt(persQ, 10) : NaN;
-    const qty = Number.isFinite(n) && n > 1 ? `${n} personnel` : '1 team';
-    return { qtyLine: qty, nameLine: teamN || fallbk };
+    if (Number.isFinite(n) && n > 0) {
+      return { qtyLine: `Personnel: ${n}`, nameLine: teamN || fallbk };
+    }
+    return { qtyLine: 'Team', nameLine: teamN || fallbk };
   }
 
   // 4) Fallback
   return { qtyLine: '', nameLine: fallbk || itemN || equipN || teamN || '' };
+}
+
+// Pick a contrasting text color for a given background hex. Uses
+// luminance — bright backgrounds (yellow, light gray) get black text;
+// dark backgrounds get white text. Threshold tuned for the COLUMNS
+// palette so each status pill stays readable.
+function pickTextColor(bg) {
+  if (!bg || typeof bg !== 'string') return '#fff';
+  const hex = bg.replace('#', '');
+  if (hex.length < 6) return '#fff';
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return lum > 0.6 ? '#111827' : '#ffffff';
+}
+
+// Look up the accent color for the column a given status belongs to.
+function statusAccent(status) {
+  const id = statusToColumnId(status);
+  const col = COLUMNS.find((c) => c.id === id);
+  return col ? col.accent : '#94a3b8';
 }
 
 // ─── Render ────────────────────────────────────────────────────────────
@@ -154,7 +158,11 @@ function CardView({ r, pending, style, dragging = false, forwardRef, handleProps
   const edit      = describeEditDate(r[FIELDS.editDate], r[FIELDS.status]);
   const entity    = v(r, FIELDS.entity);
   const esf       = v(r, FIELDS.esf);
+  const status    = v(r, FIELDS.status);
+  const address   = v(r, 'address_geo_rpt');
   const { qtyLine, nameLine } = describeResource(r);
+  const statusBg  = status ? statusAccent(status) : null;
+  const statusFg  = status ? pickTextColor(statusBg) : null;
 
   // Click handler that explicitly does NOT propagate to the dnd-kit
   // listeners on the card root — otherwise the click might be swallowed
@@ -204,6 +212,15 @@ function CardView({ r, pending, style, dragging = false, forwardRef, handleProps
           {qtyLine && <div className="card-qty">{qtyLine}</div>}
           {nameLine && <div className="card-name">{nameLine}</div>}
           {entity && <div className="card-entity muted small">{entity}</div>}
+          {address && <div className="card-address muted small">{address}</div>}
+          {status && (
+            <span
+              className="card-status-pill"
+              style={{ background: statusBg, color: statusFg }}
+            >
+              {status}
+            </span>
+          )}
         </div>
       </div>
       <div className="card-footer">

@@ -157,15 +157,19 @@ export async function fetchMccRequest({ requestNumber, missionId }) {
   return feats[0].attributes;
 }
 
-// Fetch ALL MCC records for a given mission (incidentid). Returns an
-// array of attribute objects. Empty array if none.
+// Fetch MCC records for a given mission (incidentid). Drafts without an
+// MCC_number are excluded — those aren't official yet and shouldn't
+// surface as candidates for deployment.
 export async function fetchMccsForMission(missionId) {
   if (!missionId) return [];
   await ensureFreshToken();
   const TOKEN = getToken();
   const f = MCC_SERVICE.fields;
   const safeMis = String(missionId).replace(/'/g, "''");
-  const where = `${f.incidentId} = '${safeMis}'`;
+  const where =
+    `${f.incidentId} = '${safeMis}' ` +
+    `AND ${f.mccNumber} IS NOT NULL ` +
+    `AND ${f.mccNumber} > 0`;
   const params = new URLSearchParams({
     where,
     outFields:      '*',
@@ -175,7 +179,14 @@ export async function fetchMccsForMission(missionId) {
     token:          TOKEN.accessToken,
   });
   const data = await arcgisFetch(`${MCC_SERVICE.url}/query?${params}`);
-  return (data.features || []).map((feat) => feat.attributes);
+  // Defensive client-side filter in case the service ever returns rows
+  // with NULL or 0 MCC_number despite the WHERE clause.
+  return (data.features || [])
+    .map((feat) => feat.attributes)
+    .filter((m) => {
+      const n = Number(m[f.mccNumber]);
+      return Number.isFinite(n) && n > 0;
+    });
 }
 
 // Add a new feature to the followups service. `attributes` is an

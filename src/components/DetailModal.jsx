@@ -622,7 +622,6 @@ export default function DetailModal({ r, onClose, onUpdate }) {
           <Section title="Resource" rows={[
             { label: 'Kind',            value: r.resource_kind },
             { label: 'Type',            value: r.resource_type },
-            { label: 'Description',     value: r.resource_main },
             { label: 'Equipment',       value: r.equipment },
             { label: 'Equipment type',  value: r.equipment_type },
             // Show equipment_count editor only for Equipment resources.
@@ -672,6 +671,13 @@ export default function DetailModal({ r, onClose, onUpdate }) {
               field: 'personnel_count',
               objectId: r[FIELDS.objectId],
               onUpdate,
+            },
+            // Resource description (calculated in Survey123 from team_kind /
+            // resource_other / equipment) — surface it right after the team
+            // info where it adds context.
+            !isEquipment(r) && {
+              label: 'Description',
+              value: r.resource_main,
             },
             { label: 'Identifier',      value: r.identifier },
             { label: 'Tag #',           value: r.tag_number },
