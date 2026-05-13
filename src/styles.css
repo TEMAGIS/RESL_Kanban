@@ -834,6 +834,17 @@ button { font-family: inherit; cursor: pointer; }
 .followup-contact a:hover { text-decoration: underline; }
 .followup-contact .dot { color: #c7d0dc; }
 
+/* System event rows mixed into the followups list (created / edited) */
+.followup-card--event {
+  background: #f6f9fd;
+  border-style: dashed;
+}
+.followup-card--event .event-text {
+  font-weight: 500;
+  font-style: italic;
+  color: var(--muted);
+}
+
 /* Followups tab header (count + Add button on one row) */
 .followups-header {
   display: flex;

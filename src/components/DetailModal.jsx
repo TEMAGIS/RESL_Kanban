@@ -602,6 +602,20 @@ export default function DetailModal({ r, onClose, onUpdate }) {
               setShowComposer(false);
               reloadFollowups();
             }}
+            extras={[
+              r.EditDate && {
+                kind: 'edit',
+                ts: Number(r.EditDate) || 0,
+                username: r.Editor,
+                text: 'Resource last updated',
+              },
+              r.CreationDate && {
+                kind: 'create',
+                ts: Number(r.CreationDate) || 0,
+                username: r.Creator,
+                text: 'Resource created',
+              },
+            ].filter(Boolean)}
           />
         ) : (
         <div className="modal-body">
@@ -853,12 +867,14 @@ function MccTabBody({ state }) {
 }
 
 // ─── Followups tab body ──────────────────────────────────────────────
-// Renders an ordered list (most recent first) of followup entries. Each
-// entry shows a timestamp + author header, the followup body text, and
-// a small contact footer.
-function FollowupsTabBody({
+// Exported so MccDetailModal can reuse the same UI for MCC-side
+// followups. Renders an ordered list (most recent first) of followup
+// entries. Each entry shows a timestamp + author header, the followup
+// body text, and a small contact footer.
+export function FollowupsTabBody({
   state, canEdit, resource,
   showComposer, onOpenComposer, onCancelComposer, onSubmitted,
+  extras = [],
 }) {
   const composer = showComposer && canEdit && resource ? (
     <FollowupComposer
@@ -915,59 +931,114 @@ function FollowupsTabBody({
   }
 
   const f = FOLLOWUP_SERVICE.fields;
+  // Build a unified timeline: real followups + the synthetic
+  // creation/last-edit events passed in via `extras`. Sort newest-first
+  // so the most recent activity (a followup or an edit) shows on top.
+  const timeline = [
+    ...state.data.map((fu) => ({
+      _kind: 'followup',
+      _key:  `fu-${fu[f.objectId]}`,
+      _ts:   parseTimestamp(fu[f.entryDate]),
+      data:  fu,
+    })),
+    ...extras.map((e, i) => ({
+      _kind: 'event',
+      _key:  `ev-${e.kind}-${i}`,
+      _ts:   e.ts || 0,
+      data:  e,
+    })),
+  ].sort((a, b) => b._ts - a._ts);
+
   return (
     <div className="modal-body">
       <div className="followups-header">
         <div className="muted small followups-count">
           {state.data.length} followup{state.data.length === 1 ? '' : 's'}
+          {extras.length > 0 && (
+            <> · {extras.length} event{extras.length === 1 ? '' : 's'}</>
+          )}
         </div>
         {addBtn}
       </div>
       {composer}
       <ol className="followups-list">
-        {state.data.map((fu) => {
-          const when     = fmtDateTime(fu[f.entryDate]);
-          const author   = fu[f.username] || fu[f.updatedBy] || '—';
-          const position = fu[f.positionName];
-          const agency   = fu[f.updatingAgency];
-          const phone    = fu[f.phone];
-          const email    = fu[f.email];
-          const body     = fu[f.data];
-          return (
-            <li key={fu[f.objectId]} className="followup-card">
-              <header className="followup-head">
-                <div className="followup-author">
-                  <div className="followup-name-line">
-                    <strong>{author}</strong>
-                    {position && (
-                      <>
-                        <span className="dot muted">·</span>
-                        <span className="muted small">{position}</span>
-                      </>
-                    )}
-                  </div>
-                  {when && <span className="muted small">{when}</span>}
-                </div>
-              </header>
-              {body && <div className="followup-body">{String(body)}</div>}
-              {(email || phone) && (
-                <div className="followup-contact muted small">
-                  {email && (
-                    <a href={`mailto:${email}`}>{email}</a>
-                  )}
-                  {email && phone && <span className="dot">·</span>}
-                  {phone && (
-                    <a href={`tel:${String(phone).replace(/[^+\d]/g, '')}`}>
-                      {phone}
-                    </a>
-                  )}
-                </div>
-              )}
-            </li>
-          );
-        })}
+        {timeline.map((item) =>
+          item._kind === 'event'
+            ? <EventRow key={item._key} event={item.data} />
+            : <FollowupRow key={item._key} fu={item.data} fields={f} />,
+        )}
       </ol>
     </div>
+  );
+}
+
+// Try to parse a timestamp out of a followup's entrydate which may be
+// either epoch ms or an ISO string.
+function parseTimestamp(v) {
+  if (v == null || v === '') return 0;
+  const n = Number(v);
+  if (Number.isFinite(n) && n > 0) return n;
+  const d = new Date(String(v));
+  return Number.isNaN(d.getTime()) ? 0 : d.getTime();
+}
+
+function FollowupRow({ fu, fields: f }) {
+  const when     = fmtDateTime(fu[f.entryDate]);
+  const author   = fu[f.username] || fu[f.updatedBy] || '—';
+  const position = fu[f.positionName];
+  const phone    = fu[f.phone];
+  const email    = fu[f.email];
+  const body     = fu[f.data];
+  return (
+    <li className="followup-card">
+      <header className="followup-head">
+        <div className="followup-author">
+          <div className="followup-name-line">
+            <strong>{author}</strong>
+            {position && (
+              <>
+                <span className="dot muted">·</span>
+                <span className="muted small">{position}</span>
+              </>
+            )}
+          </div>
+          {when && <span className="muted small">{when}</span>}
+        </div>
+      </header>
+      {body && <div className="followup-body">{String(body)}</div>}
+      {(email || phone) && (
+        <div className="followup-contact muted small">
+          {email && <a href={`mailto:${email}`}>{email}</a>}
+          {email && phone && <span className="dot">·</span>}
+          {phone && (
+            <a href={`tel:${String(phone).replace(/[^+\d]/g, '')}`}>{phone}</a>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
+// Synthetic event entry — "Resource created" / "Resource last updated".
+function EventRow({ event }) {
+  const when = fmtDateTime(event.ts);
+  return (
+    <li className="followup-card followup-card--event">
+      <header className="followup-head">
+        <div className="followup-author">
+          <div className="followup-name-line">
+            <strong className="event-text">{event.text}</strong>
+            {event.username && (
+              <>
+                <span className="dot muted">·</span>
+                <span className="muted small">by {event.username}</span>
+              </>
+            )}
+          </div>
+          {when && <span className="muted small">{when}</span>}
+        </div>
+      </header>
+    </li>
   );
 }
 

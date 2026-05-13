@@ -525,6 +525,7 @@ export default function Board({ onSignOut }) {
       <MccDetailModal
         mcc={mccDetailRow}
         deployments={resources}
+        readOnly={readOnly}
         onClose={() => setMccDetailRow(null)}
         onShowDeployment={(deployRow) => {
           setMccDetailRow(null);

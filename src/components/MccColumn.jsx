@@ -1,5 +1,19 @@
 import { MCC_SERVICE } from '../config.js';
 
+// Same forgiving formatter as DetailModal — handles epoch ms AND ISO
+// date strings (some MCC date fields are stored as strings).
+function fmtDateTime(v) {
+  if (v == null || v === '') return null;
+  const n = Number(v);
+  if (Number.isFinite(n) && n > 0) {
+    const d = new Date(n);
+    if (!Number.isNaN(d.getTime())) return d.toLocaleString();
+  }
+  const d2 = new Date(String(v));
+  if (!Number.isNaN(d2.getTime())) return d2.toLocaleString();
+  return String(v);
+}
+
 // MCC column — source of deployments. Not a drag-drop target. Cards
 // render basic MCC info and open a read-only popup when clicked.
 export default function MccColumn({ label, accent, mccs, onShowDetail }) {
@@ -44,6 +58,8 @@ function MccCard({ m, onClick }) {
   const status   = v(m, f.status);
   const county   = v(m, f.county);
   const poc      = v(m, f.pocName);
+  const entry    = fmtDateTime(m[f.entryDate] || m[f.mccCreated] || m[f.creationDate]);
+  const edited   = fmtDateTime(m[f.editDate]);
 
   return (
     <button
@@ -63,9 +79,11 @@ function MccCard({ m, onClick }) {
           {poc && <div className="card-entity muted small">{poc}</div>}
         </div>
       </div>
-      {priority && (
+      {(priority || entry || edited) && (
         <div className="card-footer">
-          <span className="card-chip">Priority · {priority}</span>
+          {priority && <span className="card-chip">Priority · {priority}</span>}
+          {entry  && <span className="card-chip">Entered {entry}</span>}
+          {edited && <span className="card-chip">Updated {edited}</span>}
         </div>
       )}
     </button>
