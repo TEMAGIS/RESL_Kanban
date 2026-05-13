@@ -91,32 +91,28 @@ function describeEditDate(ms, status) {
 }
 
 // Given a row, return { qtyLine, nameLine } describing its quantity and
-// resource name. Mirrors the previous TEMA dashboard format:
-//   "Equipment: 14" / "Personnel: 10" with the type-name on a second line.
+// resource name. Mirrors the previous TEMA dashboard Arcade:
+//   Equipment kind → "Equipment: N" / equipment name
+//   Team / Personnel kind → "Personnel: N" / team kind
+// Dispatch is based on `resource_kind` ONLY — never on derived fields
+// like qty_item (which Survey123 sets to 1 for teams and would otherwise
+// look like an equipment count of 1).
 function describeResource(r) {
-  const kind   = (v(r, FIELDS.kind) || '').toLowerCase();
+  const kind   = String(r[FIELDS.kind] || '').toLowerCase();
   const equipN = v(r, FIELDS.equipmentName) || v(r, FIELDS.equipmentType);
-  const equipQ = v(r, FIELDS.equipmentCount) || v(r, FIELDS.qtyItem);
-  const teamN  = v(r, FIELDS.identifier) || v(r, FIELDS.teamKind);
+  const equipQ = v(r, FIELDS.equipmentCount);
+  const teamN  = v(r, FIELDS.teamKind) || v(r, FIELDS.identifier);
   const persQ  = v(r, FIELDS.personnelCount);
-  const itemN  = v(r, FIELDS.item) || v(r, FIELDS.tagNumber);
-  const itemQ  = v(r, FIELDS.qtyItem);
   const fallbk = v(r, FIELDS.resourceMain) || v(r, FIELDS.resourceType);
 
-  // 1) Tagged inventory: item + qty_item, when present
-  if (itemN && itemQ) return { qtyLine: `Item: ${itemQ}`, nameLine: itemN };
-
-  // 2) Equipment — "Equipment: N" with the equipment name below.
-  if (kind.includes('equip') || equipN || equipQ) {
+  if (kind.includes('equip')) {
     const n = equipQ != null ? parseInt(equipQ, 10) : NaN;
     if (Number.isFinite(n) && n > 0) {
       return { qtyLine: `Equipment: ${n}`, nameLine: equipN || fallbk };
     }
     return { qtyLine: 'Equipment', nameLine: equipN || fallbk };
   }
-
-  // 3) Team / Personnel — "Personnel: N" with the team kind below.
-  if (kind.includes('team') || teamN || persQ) {
+  if (kind.includes('team') || kind.includes('personnel')) {
     const n = persQ != null ? parseInt(persQ, 10) : NaN;
     if (Number.isFinite(n) && n > 0) {
       return { qtyLine: `Personnel: ${n}`, nameLine: teamN || fallbk };
@@ -124,8 +120,10 @@ function describeResource(r) {
     return { qtyLine: 'Team', nameLine: teamN || fallbk };
   }
 
-  // 4) Fallback
-  return { qtyLine: '', nameLine: fallbk || itemN || equipN || teamN || '' };
+  // No kind specified — best-effort heuristic
+  if (persQ)  return { qtyLine: `Personnel: ${persQ}`, nameLine: teamN || fallbk };
+  if (equipQ) return { qtyLine: `Equipment: ${equipQ}`, nameLine: equipN || fallbk };
+  return { qtyLine: '', nameLine: fallbk || teamN || equipN || '' };
 }
 
 // Pick a contrasting text color for a given background hex. Uses

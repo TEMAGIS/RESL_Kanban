@@ -215,6 +215,27 @@ export async function addFollowup(attributes) {
   return result;
 }
 
+// Fetch ALL followups for a given mission in one query. Used to power
+// the "last followup" timestamp shown on each MCC card without hitting
+// the service N times.
+export async function fetchFollowupsForMission(missionId) {
+  if (!missionId) return [];
+  await ensureFreshToken();
+  const TOKEN = getToken();
+  const f = FOLLOWUP_SERVICE.fields;
+  const safeMis = String(missionId).replace(/'/g, "''");
+  const where = `${f.mission} = '${safeMis}'`;
+  const params = new URLSearchParams({
+    where,
+    outFields:      '*',
+    returnGeometry: 'false',
+    f:              'json',
+    token:          TOKEN.accessToken,
+  });
+  const data = await arcgisFetch(`${FOLLOWUP_SERVICE.url}/query?${params}`);
+  return (data.features || []).map((feat) => feat.attributes);
+}
+
 // ─── Followups service ─────────────────────────────────────────────
 // Many-to-one with each resource. Matches mcc_number_text and mission.
 // Returns an array of attribute objects sorted newest-first by

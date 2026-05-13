@@ -10,7 +10,7 @@ import {
   closestCenter,
 } from '@dnd-kit/core';
 import { COLUMNS, STATUS_COLUMNS, FIELDS, CONFIG, statusToColumnId, MCC_SERVICE } from '../config.js';
-import { fetchAllResources, fetchLayerMeta, updateStatus, updateAttributes, fetchMccsForMission } from '../service.js';
+import { fetchAllResources, fetchLayerMeta, updateStatus, updateAttributes, fetchMccsForMission, fetchFollowupsForMission } from '../service.js';
 import Column from './Column.jsx';
 import Card from './Card.jsx';
 import MccColumn from './MccColumn.jsx';
@@ -216,6 +216,7 @@ export default function Board({ onSignOut }) {
   const [detailRow,    setDetailRow]     = useState(null);
   const [mccs,         setMccs]          = useState([]);
   const [mccDetailRow, setMccDetailRow]  = useState(null);
+  const [missionFollowups, setMissionFollowups] = useState([]);
   const [readOnly]     = useState(() => readUrlReadOnly());
   const [allowedMissions] = useState(() => readUrlMissionScope());
 
@@ -247,22 +248,48 @@ export default function Board({ onSignOut }) {
     return () => clearInterval(id);
   }, [refresh]);
 
-  // Fetch MCC records whenever the selected mission changes; also refresh
-  // on the same cadence as the kanban data when the MCC column is visible.
+  // Fetch MCC records AND all mission followups whenever the selected
+  // mission changes; refresh on the same cadence as the kanban data
+  // when the MCC column is visible. Followups are used to surface the
+  // "Last followup" timestamp on each MCC card.
   useEffect(() => {
-    if (!filters.mission) { setMccs([]); return; }
+    if (!filters.mission) { setMccs([]); setMissionFollowups([]); return; }
     if (hiddenColumns.has('mcc')) return;
     let cancelled = false;
     const load = () => {
       fetchMccsForMission(filters.mission)
         .then((data) => { if (!cancelled) setMccs(data); })
         .catch((err) => console.warn('MCC fetch failed:', err));
+      fetchFollowupsForMission(filters.mission)
+        .then((data) => { if (!cancelled) setMissionFollowups(data); })
+        .catch((err) => console.warn('Mission followups fetch failed:', err));
     };
     load();
     if (!CONFIG.refreshInterval) return () => { cancelled = true; };
     const id = setInterval(load, CONFIG.refreshInterval);
     return () => { cancelled = true; clearInterval(id); };
   }, [filters.mission, hiddenColumns]);
+
+  // Map of "<mcc number>" → latest followup epoch ms timestamp.
+  const latestFollowupByMcc = useMemo(() => {
+    const out = new Map();
+    for (const fu of missionFollowups) {
+      const num = fu.mcc_number_text;
+      if (!num) continue;
+      const key = String(num).trim();
+      if (!key) continue;
+      // entrydate is stored as a string in MCC_Followup — try both numeric and ISO parsers.
+      let ts = Number(fu.entrydate);
+      if (!Number.isFinite(ts) || ts <= 0) {
+        const d = new Date(String(fu.entrydate));
+        ts = Number.isNaN(d.getTime()) ? 0 : d.getTime();
+      }
+      if (ts <= 0) continue;
+      const prev = out.get(key);
+      if (!prev || ts > prev) out.set(key, ts);
+    }
+    return out;
+  }, [missionFollowups]);
 
   // Whether the post-OAuth mission picker should take over the body.
   // Picker shows when:
@@ -477,6 +504,7 @@ export default function Board({ onSignOut }) {
                       label={c.label}
                       accent={c.accent}
                       mccs={filteredMccs}
+                      latestFollowupByMcc={latestFollowupByMcc}
                       onShowDetail={setMccDetailRow}
                     />
                   );
