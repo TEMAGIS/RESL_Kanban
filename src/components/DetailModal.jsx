@@ -448,7 +448,7 @@ function EditableDateRow({ label, value, field, objectId, onUpdate }) {
   );
 }
 
-export default function DetailModal({ r, onClose, onUpdate }) {
+export default function DetailModal({ r, followupCount = 0, onClose, onUpdate }) {
   const [activeTab, setActiveTab] = useState('resource'); // 'resource' | 'mcc' | 'followups'
 
   // MCC tab state (single record).
@@ -587,7 +587,10 @@ export default function DetailModal({ r, onClose, onUpdate }) {
             onClick={() => setActiveTab('followups')}
             title="Follow-up notes tied to this request"
           >
-            Followups
+            Followups {(() => {
+              const n = Math.max(followupCount || 0, fuState.data.length);
+              return n > 0 ? <span className="tab-count">{n}</span> : null;
+            })()}
           </button>
         </div>
 

@@ -270,28 +270,31 @@ export default function Board({ onSignOut }) {
     return () => { cancelled = true; clearInterval(id); };
   }, [filters.mission, hiddenColumns]);
 
-  // Map of "<mcc number>" → latest followup epoch ms timestamp. Reads
-  // through FOLLOWUP_SERVICE.fields so schema changes (e.g. v1 → v2)
-  // only need a config update.
-  const latestFollowupByMcc = useMemo(() => {
-    const out = new Map();
-    const ff  = FOLLOWUP_SERVICE.fields;
+  // Maps of "<mcc number>" → (latest followup epoch ms) and
+  // (followup count). Reads through FOLLOWUP_SERVICE.fields so schema
+  // changes only need a config update.
+  const { latestFollowupByMcc, followupCountByMcc } = useMemo(() => {
+    const latest = new Map();
+    const count  = new Map();
+    const ff = FOLLOWUP_SERVICE.fields;
     for (const fu of missionFollowups) {
       const num = fu[ff.requestNumber];
       if (num == null || num === '') continue;
       const key = String(num).trim();
       if (!key) continue;
+      count.set(key, (count.get(key) || 0) + 1);
       // entrydate is Date in v2 (epoch ms) but was String in v1 — handle both.
       let ts = Number(fu[ff.entryDate]);
       if (!Number.isFinite(ts) || ts <= 0) {
         const d = new Date(String(fu[ff.entryDate]));
         ts = Number.isNaN(d.getTime()) ? 0 : d.getTime();
       }
-      if (ts <= 0) continue;
-      const prev = out.get(key);
-      if (!prev || ts > prev) out.set(key, ts);
+      if (ts > 0) {
+        const prev = latest.get(key);
+        if (!prev || ts > prev) latest.set(key, ts);
+      }
     }
-    return out;
+    return { latestFollowupByMcc: latest, followupCountByMcc: count };
   }, [missionFollowups]);
 
   // Whether the post-OAuth mission picker should take over the body.
@@ -599,6 +602,11 @@ export default function Board({ onSignOut }) {
         mcc={mccDetailRow}
         deployments={resources}
         readOnly={readOnly}
+        followupCount={
+          mccDetailRow
+            ? (followupCountByMcc.get(String(mccDetailRow[MCC_SERVICE.fields.mccNumber] ?? '').trim()) || 0)
+            : 0
+        }
         onClose={() => setMccDetailRow(null)}
         onShowDeployment={(deployRow) => {
           setMccDetailRow(null);
@@ -608,6 +616,11 @@ export default function Board({ onSignOut }) {
 
       <DetailModal
         r={detailRow}
+        followupCount={
+          detailRow
+            ? (followupCountByMcc.get(String(detailRow.request_number_rpt ?? '').trim()) || 0)
+            : 0
+        }
         onClose={() => setDetailRow(null)}
         onUpdate={readOnly ? undefined : async (objectId, partial) => {
           // Snapshot the old values (including EditDate) for rollback

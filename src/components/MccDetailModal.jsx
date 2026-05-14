@@ -80,7 +80,7 @@ function matchingDeployments(mcc, deployments) {
   );
 }
 
-export default function MccDetailModal({ mcc, deployments = [], readOnly = false, onClose, onShowDeployment }) {
+export default function MccDetailModal({ mcc, deployments = [], readOnly = false, followupCount = 0, onClose, onShowDeployment }) {
   const [activeTab, setActiveTab] = useState('details'); // 'details' | 'deployments' | 'followups'
 
   // Followups tab state (mirrors DetailModal.jsx's followups handling).
@@ -200,7 +200,10 @@ export default function MccDetailModal({ mcc, deployments = [], readOnly = false
             onClick={() => setActiveTab('followups')}
             title="Follow-up notes tied to this MCC request"
           >
-            Followups {fuState.data.length > 0 && <span className="tab-count">{fuState.data.length}</span>}
+            Followups {(() => {
+              const n = Math.max(followupCount || 0, fuState.data.length);
+              return n > 0 ? <span className="tab-count">{n}</span> : null;
+            })()}
           </button>
         </div>
 
