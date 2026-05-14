@@ -128,7 +128,7 @@ export const FIELDS = {
 // ============================================================================
 export const FOLLOWUP_SERVICE = {
   url: import.meta.env.VITE_FOLLOWUP_URL ||
-       'https://services1.arcgis.com/kILp9lqGUeOhnDbI/ArcGIS/rest/services/MCC_Followup/FeatureServer/0',
+       'https://services1.arcgis.com/kILp9lqGUeOhnDbI/ArcGIS/rest/services/MCCFollowup_v2/FeatureServer/0',
   fields: {
     objectId:       'objectid',
     requestNumber:  'mcc_number_text',     // join key → request_number_rpt
