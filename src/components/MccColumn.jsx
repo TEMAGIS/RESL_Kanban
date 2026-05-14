@@ -45,7 +45,7 @@ function describeRecent(ms) {
 
 // MCC column — source of deployments. Not a drag-drop target. Cards
 // render basic MCC info and open a read-only popup when clicked.
-export default function MccColumn({ label, accent, mccs, latestFollowupByMcc, onShowDetail }) {
+export default function MccColumn({ label, accent, mccs, latestFollowupByMcc, onFilter, onShowDetail }) {
   return (
     <div className="column is-static" style={{ '--column-accent': accent }}>
       <header className="column-header">
@@ -66,7 +66,8 @@ export default function MccColumn({ label, accent, mccs, latestFollowupByMcc, on
                 key={m[MCC_SERVICE.fields.objectId] ?? m[MCC_SERVICE.fields.globalId]}
                 m={m}
                 lastFollowupTs={lastFu}
-                onClick={() => onShowDetail && onShowDetail(m)}
+                onFilter={() => onFilter && onFilter(m)}
+                onShowDetail={() => onShowDetail && onShowDetail(m)}
               />
             );
           })
@@ -84,7 +85,7 @@ const v = (m, k) => {
   return s.length ? s : null;
 };
 
-function MccCard({ m, lastFollowupTs, onClick }) {
+function MccCard({ m, lastFollowupTs, onFilter, onShowDetail }) {
   const f = MCC_SERVICE.fields;
   const mccNum   = v(m, f.mccNumber);
   const subject  = v(m, f.subject);
@@ -96,12 +97,38 @@ function MccCard({ m, lastFollowupTs, onClick }) {
   const edited   = fmtDateTime(m[f.editDate]);
   const lastFu   = describeRecent(lastFollowupTs);
 
+  // Stop pointer/click on the info button from also triggering the
+  // card-level filter.
+  const swallow = (e) => e.stopPropagation();
+  const handleInfoClick = (e) => { e.stopPropagation(); onShowDetail && onShowDetail(); };
+  const handleKey = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onFilter && onFilter();
+    }
+  };
+
   return (
-    <button
-      type="button"
+    <div
       className={`card mcc-card${lastFu.tier ? ` is-fresh-${lastFu.tier}` : ''}`}
-      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onClick={onFilter}
+      onKeyDown={handleKey}
+      title={`Filter deployments to MCC #${mccNum ?? ''}`}
     >
+      <button
+        type="button"
+        className="card-info-btn"
+        onPointerDown={swallow}
+        onMouseDown={swallow}
+        onTouchStart={swallow}
+        onClick={handleInfoClick}
+        title="Show MCC details"
+        aria-label="Show MCC details"
+      >
+        ⓘ
+      </button>
       <div className="card-grid">
         <div className="card-left">
           <div className="card-title">{mccNum ? `MCC #${mccNum}` : '—'}</div>
@@ -126,6 +153,6 @@ function MccCard({ m, lastFollowupTs, onClick }) {
           {edited && <span className="card-chip">Updated {edited}</span>}
         </div>
       )}
-    </button>
+    </div>
   );
 }

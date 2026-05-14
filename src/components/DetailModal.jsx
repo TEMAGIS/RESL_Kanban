@@ -602,20 +602,6 @@ export default function DetailModal({ r, onClose, onUpdate }) {
               setShowComposer(false);
               reloadFollowups();
             }}
-            extras={[
-              r.EditDate && {
-                kind: 'edit',
-                ts: Number(r.EditDate) || 0,
-                username: r.Editor,
-                text: 'Resource last updated',
-              },
-              r.CreationDate && {
-                kind: 'create',
-                ts: Number(r.CreationDate) || 0,
-                username: r.Creator,
-                text: 'Resource created',
-              },
-            ].filter(Boolean)}
           />
         ) : (
         <div className="modal-body">

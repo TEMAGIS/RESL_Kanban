@@ -579,29 +579,35 @@ button { font-family: inherit; cursor: pointer; }
   50%      { opacity: 0.5; transform: scale(0.8); }
 }
 
-/* Info button (top-right corner of the card) */
+/* Info button (top-right corner of the card) — always visible so
+   users don't have to discover it. Soft pill that fills on hover. */
 .card-info-btn {
   position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 22px;
-  height: 22px;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 0;
+  border: 1px solid var(--border);
   border-radius: 50%;
-  background: transparent;
-  color: var(--muted);
-  font-size: 14px;
+  background: #ffffff;
+  color: var(--primary);
+  font-size: 15px;
+  font-weight: 600;
   line-height: 1;
   cursor: pointer;
-  opacity: 0;
-  transition: opacity .12s, background .12s, color .12s;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .08);
+  transition: background .12s, color .12s, transform .1s, box-shadow .12s;
 }
-.card:hover .card-info-btn { opacity: 1; }
-.card-info-btn:hover { background: #eef2f7; color: var(--primary); }
-.card-info-btn:focus-visible { opacity: 1; outline: 2px solid var(--primary); outline-offset: 1px; }
+.card-info-btn:hover {
+  background: var(--primary);
+  color: #fff;
+  transform: scale(1.06);
+  box-shadow: 0 2px 6px rgba(11, 95, 165, .35);
+}
+.card-info-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* Make sure the title doesn't run under the info button */
 .card-grid { padding-right: 22px; }
@@ -728,14 +734,14 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ─── MCC cards (in the MCC column) ─────────────────────────────── */
 .mcc-card {
-  /* override default <button> styles since the card root is a button */
-  font: inherit;
-  text-align: left;
-  appearance: none;
   cursor: pointer;
-  width: 100%;
+  user-select: none;
 }
 .mcc-card:hover { border-color: var(--column-accent); }
+.mcc-card:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
 
 .tab-count {
   display: inline-block;

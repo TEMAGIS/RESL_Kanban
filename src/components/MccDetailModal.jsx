@@ -211,26 +211,6 @@ export default function MccDetailModal({ mcc, deployments = [], readOnly = false
               setShowComposer(false);
               reloadFollowups();
             }}
-            extras={[
-              mcc[f.editDate] && {
-                kind: 'edit',
-                ts: Number(mcc[f.editDate]) || (() => {
-                  const d = new Date(String(mcc[f.editDate]));
-                  return Number.isNaN(d.getTime()) ? 0 : d.getTime();
-                })(),
-                username: mcc[f.editor],
-                text: 'MCC last updated',
-              },
-              mcc[f.creationDate] && {
-                kind: 'create',
-                ts: Number(mcc[f.creationDate]) || (() => {
-                  const d = new Date(String(mcc[f.creationDate]));
-                  return Number.isNaN(d.getTime()) ? 0 : d.getTime();
-                })(),
-                username: mcc[f.creator],
-                text: 'MCC created',
-              },
-            ].filter(Boolean)}
           />
         ) : (
           <div className="modal-body">

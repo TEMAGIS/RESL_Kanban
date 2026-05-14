@@ -505,6 +505,16 @@ export default function Board({ onSignOut }) {
                       accent={c.accent}
                       mccs={filteredMccs}
                       latestFollowupByMcc={latestFollowupByMcc}
+                      onFilter={(m) => {
+                        const num = m[MCC_SERVICE.fields.mccNumber];
+                        if (num == null) return;
+                        const target = `#${num}`;
+                        // Clicking the active MCC again clears the filter.
+                        setFilters({
+                          ...filters,
+                          search: filters.search === target ? '' : target,
+                        });
+                      }}
                       onShowDetail={setMccDetailRow}
                     />
                   );
