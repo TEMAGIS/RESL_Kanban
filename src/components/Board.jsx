@@ -310,6 +310,38 @@ export default function Board({ onSignOut }) {
     [mccs, filters],
   );
 
+  // Sort MCC cards to match the board's Sort toggle:
+  //   "Updated" → most-recent followup first (MCCs with no followups
+  //               sink to the bottom)
+  //   "Request #" → MCC number ascending
+  const sortedFilteredMccs = useMemo(() => {
+    const arr = filteredMccs.slice();
+    if (sortBy === 'updated') {
+      arr.sort((a, b) => {
+        const aKey = String(a[MCC_SERVICE.fields.mccNumber] ?? '').trim();
+        const bKey = String(b[MCC_SERVICE.fields.mccNumber] ?? '').trim();
+        const aTs = latestFollowupByMcc.get(aKey) || 0;
+        const bTs = latestFollowupByMcc.get(bKey) || 0;
+        if (aTs === bTs) return 0;
+        if (!aTs) return 1;       // no followup → bottom
+        if (!bTs) return -1;
+        return bTs - aTs;         // newer first
+      });
+    } else {
+      arr.sort((a, b) => {
+        const na = parseFloat(a[MCC_SERVICE.fields.mccNumber]);
+        const nb = parseFloat(b[MCC_SERVICE.fields.mccNumber]);
+        const ag = Number.isFinite(na);
+        const bg = Number.isFinite(nb);
+        if (!ag && !bg) return 0;
+        if (!ag) return 1;
+        if (!bg) return -1;
+        return na - nb;           // lowest first
+      });
+    }
+    return arr;
+  }, [filteredMccs, sortBy, latestFollowupByMcc]);
+
   // Denominator for "X of Y resources" — only counts resources in the
   // currently-selected mission (not the entire feature service), so the
   // total feels meaningful relative to what's actually shown.
@@ -503,7 +535,7 @@ export default function Board({ onSignOut }) {
                       key={c.id}
                       label={c.label}
                       accent={c.accent}
-                      mccs={filteredMccs}
+                      mccs={sortedFilteredMccs}
                       latestFollowupByMcc={latestFollowupByMcc}
                       onFilter={(m) => {
                         const num = m[MCC_SERVICE.fields.mccNumber];
