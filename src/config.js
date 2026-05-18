@@ -103,6 +103,13 @@ export function buildResourceSurveyUrl(mcc) {
 // ============================================================================
 export const FIELDS = {
   objectId:        'objectid',
+  // GlobalID is the stable cross-service join key — used as the foreign
+  // key on the history layer (parent_globalid) so audit rows survive any
+  // future schema rebuild or service migration. Verify the exact case on
+  // your layer via the `[RESL-Kanban] Layer metadata` console log — AGOL
+  // uses `globalid` on most hosted feature services but some show it as
+  // `GlobalID`. Update here if the layer uses a different case.
+  globalId:        'globalid',
 
   // -- Header / identity ---------------------------------------------------
   requestNumber:   'request_number_rpt',   // "#312"
@@ -216,13 +223,16 @@ export const HISTORY_SERVICE = {
   // The seven audit fields the app writes on top of the resource-layer
   // snapshot. Rename here if your feature service uses different names.
   audit: {
-    sourceOid:     'source_oid',      // ObjectID of the row on the resource layer
-    action:        'edit_action',     // 'edit' | 'status_change' (AGOL rejects "action" — SQL keyword)
-    changedFields: 'changed_fields',  // CSV of field names that actually changed
-    changedBy:     'changed_by',      // AGOL username from the OAuth token
-    changeTs:      'change_ts',       // epoch ms when the change happened
-    prevStatus:    'prev_status',     // status before (handy for status flow)
-    newStatus:     'new_status',      // status after  (handy for status flow)
+    // GlobalID of the parent record — the stable foreign key into the
+    // resource layer. Type on the history layer must be GUID (not String).
+    parentGlobalId: 'parent_globalid',
+    sourceOid:      'source_oid',      // ObjectID of the parent (debugging breadcrumb; not the primary join key)
+    action:         'edit_action',     // 'edit' | 'status_change' (AGOL rejects "action" — SQL keyword)
+    changedFields:  'changed_fields',  // CSV of field names that actually changed
+    changedBy:      'changed_by',      // Full name from the AGOL OAuth profile
+    changeTs:       'change_ts',       // epoch ms when the change happened
+    prevStatus:     'prev_status',     // status before (handy for status flow)
+    newStatus:      'new_status',      // status after  (handy for status flow)
   },
 };
 

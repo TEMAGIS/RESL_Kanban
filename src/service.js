@@ -110,22 +110,42 @@ async function logHistory({ before, after, action, changed }) {
 
     // Snapshot every mapped resource field from the post-edit record so
     // each history row is self-contained — you can reconstruct any
-    // past state by reading a single row, no joins required. ObjectID
-    // is skipped because the history layer has its own.
+    // past state by reading a single row, no joins required.
+    // Skip the parent layer's ObjectID and GlobalID: the history layer
+    // has its own auto-generated values for both, and AGOL rejects
+    // attempts to set GlobalID on insert. The parent GlobalID is
+    // written separately into the parent_globalid audit field below
+    // (and the OID into source_oid).
     const snapshot = {};
     for (const fieldName of Object.values(FIELDS)) {
       if (fieldName === FIELDS.objectId) continue;
+      if (fieldName === FIELDS.globalId) continue;
       if (after && Object.prototype.hasOwnProperty.call(after, fieldName)) {
         snapshot[fieldName] = after[fieldName];
       }
     }
 
+    // Primary join key (parent_globalid) and debugging breadcrumb
+    // (source_oid). GlobalID is stable across schema rebuilds; ObjectID
+    // isn't, so the GlobalID is the one you should join on downstream.
+    const parentGid =
+      (before && before[FIELDS.globalId]) ??
+      (after  && after[FIELDS.globalId])  ?? null;
+    const parentOid =
+      (before && before[FIELDS.objectId]) ??
+      (after  && after[FIELDS.objectId])  ?? null;
+
     const attrs = {
       ...snapshot,
-      [a.sourceOid]:     (before && before[FIELDS.objectId]) ?? (after && after[FIELDS.objectId]) ?? null,
+      [a.parentGlobalId]: parentGid,
+      [a.sourceOid]:      parentOid,
       [a.action]:        action,
       [a.changedFields]: (changed || []).join(','),
-      [a.changedBy]:     (TOKEN && TOKEN.username) || null,
+      // Prefer fullName (e.g. "John Smith") over the AGOL username
+      // (e.g. "jsmith_tema") so the audit log is human-readable.
+      // fullName is populated by _fetchProfileInto() in auth.js — falls
+      // back to username for older cached tokens that pre-date that.
+      [a.changedBy]:     (TOKEN && (TOKEN.fullName || TOKEN.username)) || null,
       [a.changeTs]:      Date.now(),
       [a.prevStatus]:    before ? (before[FIELDS.status] ?? null) : null,
       [a.newStatus]:     after  ? (after[FIELDS.status]  ?? null) : null,
