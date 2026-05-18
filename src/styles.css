@@ -962,6 +962,39 @@ button { font-family: inherit; cursor: pointer; }
   font-weight: 500;
 }
 
+/* Address typeahead — dropdown sits below the input. */
+.address-autocomplete {
+  position: relative;
+  display: block;
+}
+.address-suggestions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 50;
+  margin: 2px 0 0;
+  padding: 4px 0;
+  list-style: none;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.12);
+  max-height: 240px;
+  overflow-y: auto;
+}
+.address-suggestion {
+  padding: 6px 10px;
+  font-size: 13px;
+  line-height: 1.35;
+  cursor: pointer;
+  color: var(--text);
+}
+.address-suggestion.is-highlight,
+.address-suggestion:hover {
+  background: #eef4fb;
+}
+
 /* System event rows mixed into the followups list (created / edited) */
 .followup-card--event {
   background: #f6f9fd;

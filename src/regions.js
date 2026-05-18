@@ -122,3 +122,23 @@ export function lookupTnCounty(fips) {
   if (!fips) return null;
   return TN_COUNTIES[String(fips)] || null;
 }
+
+// Pre-built case-insensitive name → entry map. Used by the ArcGIS
+// geocoder path which returns county names ("Davidson") rather than
+// FIPS codes. We strip a trailing " County" suffix that ArcGIS
+// sometimes returns so the lookup matches either form.
+const TN_COUNTIES_BY_NAME = (() => {
+  const out = {};
+  for (const fips of Object.keys(TN_COUNTIES)) {
+    const entry = TN_COUNTIES[fips];
+    out[entry.county.toLowerCase()] = { ...entry, fips };
+  }
+  return out;
+})();
+
+export function lookupTnCountyByName(name) {
+  if (!name) return null;
+  let key = String(name).trim().toLowerCase();
+  key = key.replace(/\s+county$/i, '').trim();
+  return TN_COUNTIES_BY_NAME[key] || null;
+}

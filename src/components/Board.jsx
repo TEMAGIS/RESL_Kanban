@@ -10,7 +10,7 @@ import {
   closestCenter,
 } from '@dnd-kit/core';
 import { COLUMNS, STATUS_COLUMNS, FIELDS, CONFIG, statusToColumnId, MCC_SERVICE, FOLLOWUP_SERVICE } from '../config.js';
-import { fetchAllResources, fetchLayerMeta, updateStatus, updateAttributes, fetchMccsForMission, fetchFollowupsForMission } from '../service.js';
+import { fetchAllResources, fetchLayerMeta, updateAttributes, fetchMccsForMission, fetchFollowupsForMission } from '../service.js';
 import Column from './Column.jsx';
 import Card from './Card.jsx';
 import MccColumn from './MccColumn.jsx';
@@ -21,6 +21,25 @@ import Brand from './Brand.jsx';
 import DetailModal from './DetailModal.jsx';
 
 const EMPTY_FILTERS = { mission: '', esf: '', county: '', kind: '', search: '' };
+
+// "Today" expressed as UTC midnight in epoch ms. AGOL stores
+// item_mobilization / item_demobilization at UTC midnight, so we encode
+// today's *local* calendar date (not the user's clock-now) the same way
+// to stay consistent with the modal's date picker.
+function todayUtcMidnightMs() {
+  const now = new Date();
+  return Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+// Mirrors recalcDaysDeployed in DetailModal — Survey123's formula is
+// floor((demob - mob) / 1 day). Returns null when either side is
+// missing or non-numeric so callers can skip the write.
+function daysBetween(mob, demob) {
+  const m = Number(mob);
+  const d = Number(demob);
+  if (!Number.isFinite(m) || !Number.isFinite(d)) return null;
+  return Math.floor((d - m) / 86_400_000);
+}
 
 // Filters that can be locked via URL search parameters. Search is
 // always user-editable.
@@ -419,27 +438,50 @@ export default function Board({ onSignOut }) {
     const previousStatus = current[FIELDS.status];
     const previousEdit   = current[FIELDS.editDate];
     const now = Date.now();
+
+    // Build the full attribute partial for the applyEdits payload.
+    // Default is just the status change; dropping into Demobilized
+    // also stamps today's demob date and recalcs days_deployed in the
+    // same write so it's atomic (and so the history row carries all
+    // three fields under a single status_change action).
+    const partial = { [FIELDS.status]: newStatus };
+    const isDemobDrop = targetColId === 'demobilized';
+    if (isDemobDrop) {
+      const today = todayUtcMidnightMs();
+      partial.item_demobilization = today;
+      const days = daysBetween(current.item_mobilization, today);
+      if (days != null) partial.days_deployed = days;
+    }
+
+    // Snapshot the prior values of every field we're about to write so
+    // rollback restores all of them (not just status) on failure.
+    const rollbackSnapshot = { [FIELDS.editDate]: previousEdit };
+    for (const k of Object.keys(partial)) rollbackSnapshot[k] = current[k];
+
     // Optimistically bump EditDate too so freshness highlight fires
     // immediately ("Just now") instead of waiting for the next refresh.
+    const optimistic = { ...partial, [FIELDS.editDate]: now };
     setResources((rs) =>
-      rs.map((r) => (r[FIELDS.objectId] === oid
-        ? { ...r, [FIELDS.status]: newStatus, [FIELDS.editDate]: now }
-        : r)),
+      rs.map((r) => (r[FIELDS.objectId] === oid ? { ...r, ...optimistic } : r)),
+    );
+    setDetailRow((prev) =>
+      prev && prev[FIELDS.objectId] === oid ? { ...prev, ...optimistic } : prev,
     );
     setPending((p) => new Set(p).add(oid));
 
     try {
       // Pass `current` (pre-edit row) so the history log can capture
-      // a full snapshot and record prev/new status.
-      await updateStatus(oid, newStatus, current);
+      // a full snapshot and the prev/new status fields.
+      await updateAttributes(oid, partial, current);
     } catch (err) {
-      console.error('updateStatus failed:', err);
+      console.error('drop update failed:', err);
       const label = current[FIELDS.requestNumber] ? `Request #${current[FIELDS.requestNumber]}` : 'this resource';
       setError(`Could not update ${label}: ${err.message}`);
       setResources((rs) =>
-        rs.map((r) => (r[FIELDS.objectId] === oid
-          ? { ...r, [FIELDS.status]: previousStatus, [FIELDS.editDate]: previousEdit }
-          : r)),
+        rs.map((r) => (r[FIELDS.objectId] === oid ? { ...r, ...rollbackSnapshot } : r)),
+      );
+      setDetailRow((prev) =>
+        prev && prev[FIELDS.objectId] === oid ? { ...prev, ...rollbackSnapshot } : prev,
       );
     } finally {
       setPending((p) => {

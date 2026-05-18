@@ -5,7 +5,7 @@
 
 import { CONFIG, FIELDS, MCC_SERVICE, FOLLOWUP_SERVICE, HISTORY_SERVICE } from './config.js';
 import { getToken, ensureFreshToken, clearStoredToken } from './auth.js';
-import { TN_STATE_FIPS, buildFips, lookupTnCounty } from './regions.js';
+import { lookupTnCountyByName } from './regions.js';
 
 async function arcgisFetch(url, init, _retried) {
   const res = await fetch(url, init);
@@ -225,11 +225,18 @@ export async function updateAttributes(objectId, partial, before, geometry) {
     const after = before
       ? { ...before, ...partial }
       : { [FIELDS.objectId]: objectId, ...partial };
-    const isStatusOnly = changed.length === 1 && changed[0] === FIELDS.status;
+    // Tag the action as 'status_change' whenever the status field is
+    // part of the write — even if there are derived side-effect fields
+    // along with it (e.g. dropping into Demobilized stamps the demob
+    // date and recalcs days_deployed in the same applyEdits). The
+    // History UI's transition view (prev → new) is the right read for
+    // the user in that case; the side-effect fields still get listed
+    // in changed_fields so they're recoverable from the row data.
+    const includesStatus = changed.includes(FIELDS.status);
     logHistory({
       before,
       after,
-      action: isStatusOnly ? 'status_change' : 'edit',
+      action: includesStatus ? 'status_change' : 'edit',
       changed,
     });
   }
@@ -244,72 +251,108 @@ export async function updateStatus(objectId, newStatus, before) {
   return updateAttributes(objectId, { [FIELDS.status]: newStatus }, before);
 }
 
-// ─── Geocoder (Census Bureau) ─────────────────────────────────────────
-// Resolve a one-line address to coordinates + FIPS using the free,
-// public Census Bureau geocoder. Returns:
-//   {
-//     matchedAddress, lat, lng,
-//     stateFips, countyFips, fips,
-//     county, region,           // resolved from regions.js if TN
-//     isTn,                     // true iff state FIPS = 47
-//   }
-// Returns null if no match was found. Throws on transport errors.
+// ─── Geocoder (ArcGIS World Geocoder) ─────────────────────────────────
+// Two endpoints power the address typeahead UI in the detail modal:
 //
-// The `geographies/onelineaddress` endpoint returns the address match
-// AND the containing county polygon's FIPS in a single round-trip, so
-// we don't need a separate point-in-polygon query.
+//   • suggestAddresses(text)  → autocomplete; returns up to 6 suggestions,
+//     each carrying a `magicKey` that uniquely identifies one record in
+//     the geocoder's index. Free to call (no token / credits).
+//   • geocodeAddress(text, { magicKey }) → resolves to coordinates plus
+//     attributes. forStorage=true (per ESRI's terms for saving coords to
+//     a feature service) and a valid AGOL token are required for the
+//     write path; consumes a credit per call.
 //
-// We use vintage=Current_Current with benchmark=Public_AR_Current — the
-// "current" benchmark is the most generous about partial matches and is
-// fine for interactive use. Switch to Public_AR_Census2020 if you ever
-// need stable, repeatable results for audit purposes.
-const CENSUS_GEOCODER_URL =
-  'https://geocoding.geo.census.gov/geocoder/geographies/onelineaddress';
+// Suggestions and the final geocode are biased toward Tennessee via a
+// `location` hint roughly at the state's geographic center. The bias
+// re-ranks; it doesn't exclude out-of-state addresses.
+const ESRI_GEOCODER = 'https://geocode-api.arcgis.com/arcgis/rest/services/World/GeocodeServer';
+// Rough centroid of TN — picked from the regions.csv county centroids
+// and rounded. Used as the `location` bias hint on suggest + geocode.
+const TN_BIAS_LOCATION = '-86.6,35.86';
 
-export async function geocodeAddress(address) {
-  if (!address || !String(address).trim()) return null;
+export async function suggestAddresses(text, { signal } = {}) {
+  const q = (text || '').trim();
+  if (q.length < 3) return [];
 
   const params = new URLSearchParams({
-    address:   String(address).trim(),
-    benchmark: 'Public_AR_Current',
-    vintage:   'Current_Current',
-    layers:    'Counties',
-    format:    'json',
+    f:              'json',
+    text:           q,
+    countryCode:    'USA',
+    maxSuggestions: '6',
+    location:       TN_BIAS_LOCATION,
+    // Address + place categories. Postal lets ZIP-only searches work.
+    category:       'Address,Postal,POI',
   });
 
-  const res = await fetch(`${CENSUS_GEOCODER_URL}?${params}`);
+  const res = await fetch(`${ESRI_GEOCODER}/suggest?${params}`, { signal });
+  if (!res.ok) throw new Error(`Suggest HTTP ${res.status}`);
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || 'Suggest error');
+  return (data.suggestions || []).map((s) => ({
+    text:         s.text,
+    magicKey:     s.magicKey,
+    isCollection: !!s.isCollection,
+  }));
+}
+
+export async function geocodeAddress(textOrEmpty, { magicKey } = {}) {
+  const text = (textOrEmpty || '').trim();
+  if (!text && !magicKey) return null;
+
+  // The ArcGIS geocoder needs a token for the storage-permitted path.
+  // We refresh first so the call never fails on a stale token. If the
+  // user isn't signed in (shouldn't happen in the app's normal flow),
+  // we still try without — useful for testing.
+  let token = null;
+  try {
+    await ensureFreshToken();
+    token = (getToken() && getToken().accessToken) || null;
+  } catch { /* unauthenticated — proceed without token */ }
+
+  const params = new URLSearchParams({
+    f:           'json',
+    outFields:   'Match_addr,Subregion,Region,RegionAbbr,Country,Place_addr,PlaceName,Type',
+    forStorage:  'true',
+    maxLocations:'1',
+    location:    TN_BIAS_LOCATION,
+    countryCode: 'USA',
+  });
+  // magicKey beats free text — it's an exact pointer into the index.
+  if (magicKey) {
+    params.set('magicKey', magicKey);
+    if (text) params.set('singleLine', text);
+  } else {
+    params.set('singleLine', text);
+  }
+  if (token) params.set('token', token);
+
+  const res = await fetch(`${ESRI_GEOCODER}/findAddressCandidates?${params}`);
   if (!res.ok) throw new Error(`Geocoder HTTP ${res.status}`);
   const data = await res.json();
+  if (data.error) throw new Error(data.error.message || 'Geocode error');
 
-  const matches = (data && data.result && data.result.addressMatches) || [];
-  if (matches.length === 0) return null;
+  const candidates = data.candidates || [];
+  if (candidates.length === 0) return null;
+  const c = candidates[0];
 
-  // Use the top match. The geocoder returns matches roughly by
-  // confidence; we don't second-guess.
-  const m = matches[0];
-  const lng = m.coordinates && m.coordinates.x;
-  const lat = m.coordinates && m.coordinates.y;
-
-  // County FIPS lives inside geographies.Counties[0]. STATE/COUNTY are
-  // 2-digit and 3-digit strings respectively; GEOID is the combined
-  // 5-digit form. Different Census responses populate these slightly
-  // differently — we read all three and reconcile.
-  const county = (m.geographies && m.geographies.Counties && m.geographies.Counties[0]) || null;
-  const stateFips  = county && (county.STATE || '');
-  const countyFips = county && (county.COUNTY || '');
-  const geoid      = county && (county.GEOID  || buildFips(stateFips, countyFips));
-
-  const tn = lookupTnCounty(geoid);
+  const attrs = c.attributes || {};
+  const countyName = String(attrs.Subregion || '').trim();
+  const stateName  = String(attrs.Region    || '').trim();
+  const stateAbbr  = String(attrs.RegionAbbr || '').trim().toUpperCase();
+  const isTn = stateAbbr === 'TN' || stateName.toLowerCase() === 'tennessee';
+  const tn = isTn ? lookupTnCountyByName(countyName) : null;
 
   return {
-    matchedAddress: m.matchedAddress || String(address),
-    lng, lat,
-    stateFips,
-    countyFips,
-    fips:    geoid,
-    county:  tn ? tn.county : (county && county.NAME) || null,
-    region:  tn ? tn.region : null,
-    isTn:    stateFips === TN_STATE_FIPS,
+    matchedAddress: attrs.Match_addr || c.address || text,
+    lng:            c.location && c.location.x,
+    lat:            c.location && c.location.y,
+    rawCounty:      countyName,
+    rawState:       stateName,
+    // Normalized values: prefer the regions.csv form so casing/spelling
+    // matches whatever the rest of the system already uses.
+    county:         tn ? tn.county : (isTn ? countyName : null),
+    region:         tn ? tn.region : null,
+    isTn,
   };
 }
 

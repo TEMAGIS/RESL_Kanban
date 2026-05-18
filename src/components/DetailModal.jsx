@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FIELDS, MISSION_TYPES, TEAM_KINDS, MCC_SERVICE, FOLLOWUP_SERVICE, HISTORY_SERVICE, labelFor } from '../config.js';
-import { fetchMccRequest, fetchFollowups, addFollowup, fetchHistory, geocodeAddress } from '../service.js';
+import { fetchMccRequest, fetchFollowups, addFollowup, fetchHistory, geocodeAddress, suggestAddresses } from '../service.js';
 import { getToken } from '../auth.js';
 
 const FOLLOWUP_AUTHOR_KEY = 'resl_kanban_followup_author_v1';
@@ -461,16 +461,17 @@ function EditableDateRow({ label, value, field, objectId, onUpdate }) {
   );
 }
 
-// Editable address input. On commit (blur with a changed value, or
-// Enter), geocodes the user-typed address with the Census Bureau API
-// and writes five things in a single applyEdits:
+// Editable address input with typeahead. On commit (clicking a
+// suggestion, pressing Enter, or blurring with a changed value) the
+// ArcGIS World Geocoder resolves the address and writes five things in
+// one applyEdits:
 //   • user_input_txt_rpt — the user-typed string, verbatim (`field`)
-//   • address_geo_rpt    — Census-normalized form    (`geocodedField`)
+//   • address_geo_rpt    — geocoder Match_addr        (`geocodedField`)
 //   • county_rpt         — derived county (TN-only)
 //   • region_rpt         — derived TEMA region (TN-only)
 //   • geometry           — the record's point on the map
-// Non-TN matches still save user input + geocoded + geometry but leave
-// county/region untouched, with a small warning, so existing values
+// Non-TN matches still save user input + matched + geometry but leave
+// county/region untouched (with a small warning) so existing values
 // aren't silently overwritten.
 function EditableAddressRow({ label, value, field, geocodedField, objectId, onUpdate }) {
   const initial = value == null ? '' : String(value);
@@ -479,7 +480,51 @@ function EditableAddressRow({ label, value, field, geocodedField, objectId, onUp
   const [err,    setErr]    = useState('');
   const [info,   setInfo]   = useState('');
 
+  // Typeahead state
+  const [suggestions, setSuggestions] = useState([]);
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [highlight,   setHighlight]   = useState(-1);
+  const inputRef = useRef(null);
+  // The user just picked a suggestion (mousedown selected magicKey) —
+  // skip the onBlur free-text commit so we don't double-geocode.
+  const pickedRef = useRef(null);
+  // Track in-flight suggest requests so an older response can't
+  // overwrite a newer one out of order.
+  const abortRef = useRef(null);
+
   useEffect(() => { setLocal(initial); }, [initial]);
+
+  // Debounced suggest. Fires 250ms after the user stops typing, only
+  // when the input has at least 3 characters and the value isn't the
+  // current saved address (so reopening the modal doesn't pop the
+  // dropdown).
+  useEffect(() => {
+    if (!onUpdate) return;
+    const text = local.trim();
+    if (text.length < 3 || text === initial) {
+      setSuggestions([]); setSuggestOpen(false); setHighlight(-1);
+      return;
+    }
+    if (abortRef.current) abortRef.current.abort();
+    const ac = new AbortController();
+    abortRef.current = ac;
+    const t = setTimeout(() => {
+      suggestAddresses(text, { signal: ac.signal })
+        .then((list) => {
+          if (ac.signal.aborted) return;
+          setSuggestions(list);
+          setSuggestOpen(list.length > 0);
+          setHighlight(list.length > 0 ? 0 : -1);
+        })
+        .catch((ex) => {
+          if (ex.name === 'AbortError') return;
+          // Suggest is best-effort — log but don't surface to the user.
+          console.warn('[RESL-Kanban] suggest failed:', ex);
+          setSuggestions([]); setSuggestOpen(false);
+        });
+    }, 250);
+    return () => { clearTimeout(t); ac.abort(); };
+  }, [local, initial, onUpdate]);
 
   if (!onUpdate) {
     if (!has(value)) return null;
@@ -491,41 +536,26 @@ function EditableAddressRow({ label, value, field, geocodedField, objectId, onUp
     );
   }
 
-  const commit = async () => {
-    const trimmed = local.trim();
-    if (trimmed === '' && initial === '') { setErr(''); setInfo(''); return; }
-    if (trimmed === initial) { setErr(''); setInfo(''); return; }
-
+  // Run the geocoder + write. `displayText` is what we save into the
+  // user-typed field; `magicKey` (when present) makes the geocode
+  // resolve to the exact suggestion the user picked.
+  const runGeocodeAndSave = async (displayText, magicKey) => {
     setErr(''); setInfo('');
+    setSuggestOpen(false);
     setSaving(true);
     try {
-      // Empty string clears the user-entered address (and the geocoded
-      // form alongside it). We deliberately leave county/region/geometry
-      // alone so we don't strand the record at (0,0) when somebody
-      // blanks out the field.
-      if (trimmed === '') {
-        const clearPartial = { [field]: null };
-        if (geocodedField) clearPartial[geocodedField] = null;
-        await onUpdate(objectId, clearPartial);
-        return;
-      }
+      const match = await geocodeAddress(displayText, { magicKey });
+      if (!match) throw new Error('No address match found.');
 
-      const match = await geocodeAddress(trimmed);
-      if (!match) {
-        throw new Error('No address match found. Try adding city + state.');
-      }
-
-      // Build the multi-field write. The user's exact typed string goes
-      // to `field` (the editable display); the Census-normalized string
-      // goes to `geocodedField` for joins/exports.
-      const partial = { [field]: trimmed };
+      const savedText = displayText || match.matchedAddress;
+      const partial = { [field]: savedText };
       if (geocodedField) partial[geocodedField] = match.matchedAddress;
       if (match.isTn) {
         partial[FIELDS.county] = match.county || null;
         partial[FIELDS.region] = match.region || null;
         setInfo(`${match.county} County · ${match.region} Region`);
       } else {
-        setInfo(`Outside Tennessee — county/region left as is.`);
+        setInfo('Outside Tennessee — county/region left as is.');
       }
 
       const geometry = (match.lng != null && match.lat != null)
@@ -534,7 +564,7 @@ function EditableAddressRow({ label, value, field, geocodedField, objectId, onUp
         : null;
 
       await onUpdate(objectId, partial, geometry);
-      setLocal(trimmed);
+      setLocal(savedText);
     } catch (ex) {
       setErr(ex.message || 'Geocode failed');
       setLocal(initial);
@@ -543,23 +573,111 @@ function EditableAddressRow({ label, value, field, geocodedField, objectId, onUp
     }
   };
 
+  const pickSuggestion = (s) => {
+    if (!s) return;
+    pickedRef.current = s.magicKey || true;
+    setLocal(s.text);
+    runGeocodeAndSave(s.text, s.magicKey);
+  };
+
+  const commitFreeText = async () => {
+    const trimmed = local.trim();
+    // Skip if the user just picked a suggestion (handled separately).
+    if (pickedRef.current) { pickedRef.current = null; return; }
+    if (trimmed === initial) { setErr(''); setInfo(''); return; }
+    if (trimmed === '') {
+      // Clear path — drop both user-input and the geocoded field.
+      setSaving(true);
+      try {
+        const clearPartial = { [field]: null };
+        if (geocodedField) clearPartial[geocodedField] = null;
+        await onUpdate(objectId, clearPartial);
+      } catch (ex) {
+        setErr(ex.message || 'Save failed');
+        setLocal(initial);
+      } finally { setSaving(false); }
+      return;
+    }
+    await runGeocodeAndSave(trimmed, null);
+  };
+
+  const onKeyDown = (e) => {
+    if (suggestOpen && suggestions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setHighlight((h) => (h + 1) % suggestions.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setHighlight((h) => (h <= 0 ? suggestions.length - 1 : h - 1));
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const pick = suggestions[highlight >= 0 ? highlight : 0];
+        pickSuggestion(pick);
+        return;
+      }
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.currentTarget.blur();
+      return;
+    }
+    if (e.key === 'Escape') {
+      setLocal(initial);
+      setErr(''); setInfo('');
+      setSuggestOpen(false);
+      e.currentTarget.blur();
+    }
+  };
+
   return (
     <div className="modal-row editable">
       <dt>{label}</dt>
       <dd>
-        <input
-          className="modal-edit-input modal-edit-input--text"
-          type="text"
-          value={local}
-          onChange={(e) => { setLocal(e.target.value); setInfo(''); setErr(''); }}
-          onBlur={commit}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); }
-            if (e.key === 'Escape') { setLocal(initial); setErr(''); setInfo(''); e.currentTarget.blur(); }
-          }}
-          disabled={saving}
-          placeholder="Street, City, ST"
-        />
+        <div className="address-autocomplete">
+          <input
+            ref={inputRef}
+            className="modal-edit-input modal-edit-input--text"
+            type="text"
+            value={local}
+            onChange={(e) => {
+              setLocal(e.target.value);
+              setInfo(''); setErr('');
+              pickedRef.current = null;
+            }}
+            onFocus={() => {
+              if (suggestions.length > 0 && local.trim().length >= 3 && local !== initial) {
+                setSuggestOpen(true);
+              }
+            }}
+            onBlur={commitFreeText}
+            onKeyDown={onKeyDown}
+            disabled={saving}
+            placeholder="Type an address…"
+            autoComplete="off"
+          />
+          {suggestOpen && suggestions.length > 0 && (
+            <ul className="address-suggestions" role="listbox">
+              {suggestions.map((s, i) => (
+                <li
+                  key={s.magicKey || s.text}
+                  role="option"
+                  aria-selected={i === highlight}
+                  className={`address-suggestion${i === highlight ? ' is-highlight' : ''}`}
+                  // mousedown beats blur, so the input keeps focus
+                  // long enough for us to handle the pick.
+                  onMouseDown={(e) => { e.preventDefault(); pickSuggestion(s); }}
+                  onMouseEnter={() => setHighlight(i)}
+                >
+                  {s.text}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
         {saving && <span className="muted small modal-edit-status">Geocoding…</span>}
         {!saving && err && <span className="error-text small modal-edit-status">{err}</span>}
         {!saving && !err && info && <span className="muted small modal-edit-status">{info}</span>}
