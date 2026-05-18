@@ -1077,6 +1077,8 @@ function FollowupComposer({ resource, onCancel, onSubmitted }) {
     setError('');
     setSubmitting(true);
     try {
+      const now = Date.now();
+
       const attrs = {
         [f.requestNumber]:  mccNo,
         [f.mission]:        incidentId,
