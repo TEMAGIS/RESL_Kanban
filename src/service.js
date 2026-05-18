@@ -195,23 +195,60 @@ export async function fetchMccsForMission(missionId) {
 export async function addFollowup(attributes) {
   await ensureFreshToken();
   const TOKEN = getToken();
+
+  console.info('[Followup] posting to:', FOLLOWUP_SERVICE.url);
+  console.info('[Followup] attributes:', attributes);
+
   const body = new URLSearchParams({
-    f:        'json',
-    token:    TOKEN.accessToken,
+    f: 'json',
+    token: TOKEN.accessToken,
     features: JSON.stringify([{ attributes }]),
   });
+
   const data = await arcgisFetch(`${FOLLOWUP_SERVICE.url}/addFeatures`, {
     method: 'POST',
     body,
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
   });
-  const result = (data.addResults && data.addResults[0]) || null;
+
+  console.info('[Followup] raw addFeatures response:', data);
+
+  const result =
+    (data.addResults && data.addResults[0]) || null;
+
   if (!result || !result.success) {
     const msg = result && result.error
       ? `${result.error.code}: ${result.error.description}`
       : 'Add failed';
+
     throw new Error(msg);
   }
+
+  const oid = result.objectId ?? result.objectid;
+
+  console.info('[Followup] created ObjectID:', oid);
+
+  // immediate verification query
+  try {
+    const verifyParams = new URLSearchParams({
+      objectIds: String(oid),
+      outFields: '*',
+      returnGeometry: 'false',
+      f: 'json',
+      token: TOKEN.accessToken,
+    });
+
+    const verify = await arcgisFetch(
+      `${FOLLOWUP_SERVICE.url}/query?${verifyParams}`
+    );
+
+    console.info('[Followup] verify query response:', verify);
+  } catch (verifyErr) {
+    console.warn('[Followup] verify query failed:', verifyErr);
+  }
+
   return result;
 }
 
