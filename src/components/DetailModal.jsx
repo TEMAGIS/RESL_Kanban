@@ -1076,7 +1076,8 @@ function FollowupComposer({ resource, onCancel, onSubmitted }) {
       const attrs = {
         [f.requestNumber]:  mccNo,
         [f.mission]:        incidentId,
-        [f.entryDate]:      Date.now(),                        // Date field = epoch ms
+        [f.entryDate]:      now,
+        [f.entryDateAlt]:   now,                    
         [f.data]:           text.trim(),
         [f.updatedBy]:      (author.username || '').trim(),
         [f.positionId]:     (author.position || '').trim(),
