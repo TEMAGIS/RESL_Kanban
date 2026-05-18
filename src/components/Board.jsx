@@ -429,7 +429,9 @@ export default function Board({ onSignOut }) {
     setPending((p) => new Set(p).add(oid));
 
     try {
-      await updateStatus(oid, newStatus);
+      // Pass `current` (pre-edit row) so the history log can capture
+      // a full snapshot and record prev/new status.
+      await updateStatus(oid, newStatus, current);
     } catch (err) {
       console.error('updateStatus failed:', err);
       const label = current[FIELDS.requestNumber] ? `Request #${current[FIELDS.requestNumber]}` : 'this resource';
@@ -622,7 +624,9 @@ export default function Board({ onSignOut }) {
           );
 
           try {
-            await updateAttributes(objectId, partial);
+            // Pass `before` (pre-edit row) so the history log can
+            // diff old vs. new and capture a full snapshot.
+            await updateAttributes(objectId, partial, before);
           } catch (err) {
             // Roll back (including EditDate)
             setResources((rs) =>

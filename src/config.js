@@ -196,6 +196,36 @@ export const FOLLOWUP_SERVICE = {
   },
 };
 
+// ============================================================================
+//  HISTORY service — audit log of every edit made through this app.
+//  Schema mirrors the resource layer (so each row is a full snapshot of
+//  the record at the time of edit), with seven extra audit fields tacked
+//  on. Create this in AGOL as a new hosted feature service — easiest is
+//  "Save As" from the parent Mobilization_MCC_Tracking_Resource service,
+//  then add the audit fields under the History layer's Data tab. See
+//  HISTORY_LOG_SETUP.md for the full field list.
+//
+//  Set `enabled: false` (or leave VITE_HISTORY_URL blank and the default
+//  URL pointing at a service that doesn't exist) to silence history
+//  writes — they're fire-and-forget and never block an edit either way.
+// ============================================================================
+export const HISTORY_SERVICE = {
+  url: import.meta.env.VITE_HISTORY_URL ||
+       'https://services1.arcgis.com/kILp9lqGUeOhnDbI/ArcGIS/rest/services/RESL_Edit_Tracking/FeatureServer/1',
+  enabled: true,
+  // The seven audit fields the app writes on top of the resource-layer
+  // snapshot. Rename here if your feature service uses different names.
+  audit: {
+    sourceOid:     'source_oid',      // ObjectID of the row on the resource layer
+    action:        'edit_action',     // 'edit' | 'status_change' (AGOL rejects "action" — SQL keyword)
+    changedFields: 'changed_fields',  // CSV of field names that actually changed
+    changedBy:     'changed_by',      // AGOL username from the OAuth token
+    changeTs:      'change_ts',       // epoch ms when the change happened
+    prevStatus:    'prev_status',     // status before (handy for status flow)
+    newStatus:     'new_status',      // status after  (handy for status flow)
+  },
+};
+
 export const MCC_SERVICE = {
   url: 'https://services1.arcgis.com/kILp9lqGUeOhnDbI/ArcGIS/rest/services/MCCStatusMapper2/FeatureServer/0',
   fields: {

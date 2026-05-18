@@ -3,7 +3,7 @@
 //  on every request and silently refreshes once on a 498/499 response.
 // ============================================================================
 
-import { CONFIG, FIELDS, MCC_SERVICE, FOLLOWUP_SERVICE } from './config.js';
+import { CONFIG, FIELDS, MCC_SERVICE, FOLLOWUP_SERVICE, HISTORY_SERVICE } from './config.js';
 import { getToken, ensureFreshToken, clearStoredToken } from './auth.js';
 
 async function arcgisFetch(url, init, _retried) {
@@ -93,9 +93,68 @@ export async function fetchAllResources() {
   return allFeatures.map((f) => f.attributes);
 }
 
+// ─── History audit log ────────────────────────────────────────────────
+// Fire-and-forget writer that appends a row to the history feature
+// service for every successful edit. Never throws — any failure is
+// logged to the console so a history-service hiccup can't break a
+// normal edit. The history row is a full snapshot of the resource
+// record (post-edit) plus seven audit metadata fields. See
+// HISTORY_SERVICE in src/config.js and HISTORY_LOG_SETUP.md for the
+// schema you need on the AGOL feature service.
+async function logHistory({ before, after, action, changed }) {
+  if (!HISTORY_SERVICE.enabled || !HISTORY_SERVICE.url) return;
+  try {
+    await ensureFreshToken();
+    const TOKEN = getToken();
+    const a = HISTORY_SERVICE.audit;
+
+    // Snapshot every mapped resource field from the post-edit record so
+    // each history row is self-contained — you can reconstruct any
+    // past state by reading a single row, no joins required. ObjectID
+    // is skipped because the history layer has its own.
+    const snapshot = {};
+    for (const fieldName of Object.values(FIELDS)) {
+      if (fieldName === FIELDS.objectId) continue;
+      if (after && Object.prototype.hasOwnProperty.call(after, fieldName)) {
+        snapshot[fieldName] = after[fieldName];
+      }
+    }
+
+    const attrs = {
+      ...snapshot,
+      [a.sourceOid]:     (before && before[FIELDS.objectId]) ?? (after && after[FIELDS.objectId]) ?? null,
+      [a.action]:        action,
+      [a.changedFields]: (changed || []).join(','),
+      [a.changedBy]:     (TOKEN && TOKEN.username) || null,
+      [a.changeTs]:      Date.now(),
+      [a.prevStatus]:    before ? (before[FIELDS.status] ?? null) : null,
+      [a.newStatus]:     after  ? (after[FIELDS.status]  ?? null) : null,
+    };
+
+    const body = new URLSearchParams({
+      f:        'json',
+      token:    TOKEN.accessToken,
+      features: JSON.stringify([{ attributes: attrs }]),
+    });
+    const data = await arcgisFetch(`${HISTORY_SERVICE.url}/addFeatures`, {
+      method:  'POST',
+      body,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    });
+    const result = (data.addResults && data.addResults[0]) || null;
+    if (!result || !result.success) {
+      console.warn('[RESL-Kanban] history log failed:', result && result.error);
+    }
+  } catch (err) {
+    console.warn('[RESL-Kanban] history log error:', err);
+  }
+}
+
 // Update arbitrary attributes on a single feature via applyEdits.
 // `partial` is an object of { fieldName: newValue } pairs.
-export async function updateAttributes(objectId, partial) {
+// `before` (optional) is the pre-edit row attributes — passing it lets
+// the history log diff old vs. new and capture a full snapshot.
+export async function updateAttributes(objectId, partial, before) {
   await ensureFreshToken();
   const TOKEN = getToken();
 
@@ -118,12 +177,35 @@ export async function updateAttributes(objectId, partial) {
     const msg = result && result.error ? `${result.error.code}: ${result.error.description}` : 'Update failed';
     throw new Error(msg);
   }
+
+  // History log — only fields that actually changed (when we have a
+  // `before` snapshot to compare against). Fire-and-forget; we never
+  // await the result so a slow history service doesn't slow the UI.
+  let changed = Object.keys(partial);
+  if (before) {
+    changed = changed.filter((k) => before[k] !== partial[k]);
+  }
+  if (changed.length > 0) {
+    const after = before
+      ? { ...before, ...partial }
+      : { [FIELDS.objectId]: objectId, ...partial };
+    const isStatusOnly = changed.length === 1 && changed[0] === FIELDS.status;
+    logHistory({
+      before,
+      after,
+      action: isStatusOnly ? 'status_change' : 'edit',
+      changed,
+    });
+  }
+
   return result;
 }
 
-// Convenience wrapper used by the drag-drop handler.
-export async function updateStatus(objectId, newStatus) {
-  return updateAttributes(objectId, { [FIELDS.status]: newStatus });
+// Convenience wrapper used by the drag-drop handler. Pass `before` (the
+// pre-edit row) so the history log can capture a full snapshot and the
+// prev/new status fields.
+export async function updateStatus(objectId, newStatus, before) {
+  return updateAttributes(objectId, { [FIELDS.status]: newStatus }, before);
 }
 
 // ─── MCC Status Mapper (secondary service) ───────────────────────────
