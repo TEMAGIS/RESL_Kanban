@@ -935,6 +935,32 @@ button { font-family: inherit; cursor: pointer; }
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
 }
+.history-diffs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.history-diff {
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+.history-diff-label {
+  font-weight: 600;
+  color: var(--muted);
+}
+.history-diff-before {
+  color: var(--muted);
+  text-decoration: line-through;
+  text-decoration-color: rgba(0,0,0,0.25);
+}
+.history-diff-after {
+  color: var(--text);
+  font-weight: 500;
+}
 
 /* System event rows mixed into the followups list (created / edited) */
 .followup-card--event {

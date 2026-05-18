@@ -605,7 +605,7 @@ export default function Board({ onSignOut }) {
             : 0
         }
         onClose={() => setDetailRow(null)}
-        onUpdate={readOnly ? undefined : async (objectId, partial) => {
+        onUpdate={readOnly ? undefined : async (objectId, partial, geometry) => {
           // Snapshot the old values (including EditDate) for rollback
           const before = resources.find((row) => row[FIELDS.objectId] === objectId);
           if (!before) throw new Error('Row not found');
@@ -625,8 +625,10 @@ export default function Board({ onSignOut }) {
 
           try {
             // Pass `before` (pre-edit row) so the history log can
-            // diff old vs. new and capture a full snapshot.
-            await updateAttributes(objectId, partial, before);
+            // diff old vs. new and capture a full snapshot. `geometry`
+            // is set by the address row's geocoder so the record's
+            // point moves on the map alongside the attribute changes.
+            await updateAttributes(objectId, partial, before, geometry);
           } catch (err) {
             // Roll back (including EditDate)
             setResources((rs) =>

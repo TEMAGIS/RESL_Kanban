@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FIELDS, MISSION_TYPES, TEAM_KINDS, MCC_SERVICE, FOLLOWUP_SERVICE, HISTORY_SERVICE } from '../config.js';
-import { fetchMccRequest, fetchFollowups, addFollowup, fetchHistory } from '../service.js';
+import { FIELDS, MISSION_TYPES, TEAM_KINDS, MCC_SERVICE, FOLLOWUP_SERVICE, HISTORY_SERVICE, labelFor } from '../config.js';
+import { fetchMccRequest, fetchFollowups, addFollowup, fetchHistory, geocodeAddress } from '../service.js';
 import { getToken } from '../auth.js';
 
 const FOLLOWUP_AUTHOR_KEY = 'resl_kanban_followup_author_v1';
@@ -165,6 +165,19 @@ function Section({ title, rows }) {
                 label={r.label}
                 value={r.value}
                 field={r.field}
+                objectId={r.objectId}
+                onUpdate={r.onUpdate}
+              />
+            );
+          }
+          if (r.type === 'address') {
+            return (
+              <EditableAddressRow
+                key={r.label}
+                label={r.label}
+                value={r.value}
+                field={r.field}
+                geocodedField={r.geocodedField}
                 objectId={r.objectId}
                 onUpdate={r.onUpdate}
               />
@@ -443,6 +456,113 @@ function EditableDateRow({ label, value, field, objectId, onUpdate }) {
         />
         {saving && <span className="muted small modal-edit-status">Saving…</span>}
         {!saving && err && <span className="error-text small modal-edit-status">{err}</span>}
+      </dd>
+    </div>
+  );
+}
+
+// Editable address input. On commit (blur with a changed value, or
+// Enter), geocodes the user-typed address with the Census Bureau API
+// and writes five things in a single applyEdits:
+//   • user_input_txt_rpt — the user-typed string, verbatim (`field`)
+//   • address_geo_rpt    — Census-normalized form    (`geocodedField`)
+//   • county_rpt         — derived county (TN-only)
+//   • region_rpt         — derived TEMA region (TN-only)
+//   • geometry           — the record's point on the map
+// Non-TN matches still save user input + geocoded + geometry but leave
+// county/region untouched, with a small warning, so existing values
+// aren't silently overwritten.
+function EditableAddressRow({ label, value, field, geocodedField, objectId, onUpdate }) {
+  const initial = value == null ? '' : String(value);
+  const [local,  setLocal]  = useState(initial);
+  const [saving, setSaving] = useState(false);
+  const [err,    setErr]    = useState('');
+  const [info,   setInfo]   = useState('');
+
+  useEffect(() => { setLocal(initial); }, [initial]);
+
+  if (!onUpdate) {
+    if (!has(value)) return null;
+    return (
+      <div className="modal-row">
+        <dt>{label}</dt>
+        <dd>{String(value)}</dd>
+      </div>
+    );
+  }
+
+  const commit = async () => {
+    const trimmed = local.trim();
+    if (trimmed === '' && initial === '') { setErr(''); setInfo(''); return; }
+    if (trimmed === initial) { setErr(''); setInfo(''); return; }
+
+    setErr(''); setInfo('');
+    setSaving(true);
+    try {
+      // Empty string clears the user-entered address (and the geocoded
+      // form alongside it). We deliberately leave county/region/geometry
+      // alone so we don't strand the record at (0,0) when somebody
+      // blanks out the field.
+      if (trimmed === '') {
+        const clearPartial = { [field]: null };
+        if (geocodedField) clearPartial[geocodedField] = null;
+        await onUpdate(objectId, clearPartial);
+        return;
+      }
+
+      const match = await geocodeAddress(trimmed);
+      if (!match) {
+        throw new Error('No address match found. Try adding city + state.');
+      }
+
+      // Build the multi-field write. The user's exact typed string goes
+      // to `field` (the editable display); the Census-normalized string
+      // goes to `geocodedField` for joins/exports.
+      const partial = { [field]: trimmed };
+      if (geocodedField) partial[geocodedField] = match.matchedAddress;
+      if (match.isTn) {
+        partial[FIELDS.county] = match.county || null;
+        partial[FIELDS.region] = match.region || null;
+        setInfo(`${match.county} County · ${match.region} Region`);
+      } else {
+        setInfo(`Outside Tennessee — county/region left as is.`);
+      }
+
+      const geometry = (match.lng != null && match.lat != null)
+        ? { x: Number(match.lng), y: Number(match.lat),
+            spatialReference: { wkid: 4326 } }
+        : null;
+
+      await onUpdate(objectId, partial, geometry);
+      setLocal(trimmed);
+    } catch (ex) {
+      setErr(ex.message || 'Geocode failed');
+      setLocal(initial);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-row editable">
+      <dt>{label}</dt>
+      <dd>
+        <input
+          className="modal-edit-input modal-edit-input--text"
+          type="text"
+          value={local}
+          onChange={(e) => { setLocal(e.target.value); setInfo(''); setErr(''); }}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); }
+            if (e.key === 'Escape') { setLocal(initial); setErr(''); setInfo(''); e.currentTarget.blur(); }
+          }}
+          disabled={saving}
+          placeholder="Street, City, ST"
+        />
+        {saving && <span className="muted small modal-edit-status">Geocoding…</span>}
+        {!saving && err && <span className="error-text small modal-edit-status">{err}</span>}
+        {!saving && !err && info && <span className="muted small modal-edit-status">{info}</span>}
       </dd>
     </div>
   );
@@ -756,9 +876,26 @@ export default function DetailModal({ r, followupCount = 0, onClose, onUpdate })
           ]} />
 
           <Section title="Location" rows={[
+            // Address is the only editable field here. On commit, the
+            // geocoder writes the typed string to user_input_txt_rpt,
+            // the normalized form to address_geo_rpt, derives county +
+            // region, and updates the geometry — all in one applyEdits.
+            // The rows below refresh automatically.
+            {
+              label: 'Address',
+              value: r[FIELDS.userInputAddress],
+              editable: true,
+              type: 'address',
+              field: FIELDS.userInputAddress,
+              geocodedField: FIELDS.address,
+              objectId: r[FIELDS.objectId],
+              onUpdate,
+            },
+            // Read-only — the Census-normalized address. Hidden when
+            // empty (Section drops static rows with no value).
+            { label: 'Geocoded as', value: r[FIELDS.address] },
             { label: 'County',  value: r.county_rpt },
             { label: 'Region',  value: r.region_rpt },
-            { label: 'Address', value: r.address_geo_rpt },
           ]} />
 
           <Section title="Status & Timing" rows={[
@@ -1117,10 +1254,15 @@ function HistoryTabBody({ state }) {
         </div>
       </div>
       <ol className="followups-list">
-        {state.data.map((h) => (
+        {state.data.map((h, i) => (
           <HistoryRow
-            key={h.objectid ?? h.OBJECTID ?? `${h[HISTORY_SERVICE.audit.changeTs]}-${Math.random()}`}
+            key={h.objectid ?? h.OBJECTID ?? `${h[HISTORY_SERVICE.audit.changeTs]}-${i}`}
             row={h}
+            // The list is newest-first, so the "previous" snapshot
+            // (i.e. the state of the record before this edit happened)
+            // lives at index i+1. Pass it through so the row can show
+            // before → after for each changed field.
+            previous={state.data[i + 1] || null}
           />
         ))}
       </ol>
@@ -1128,39 +1270,84 @@ function HistoryTabBody({ state }) {
   );
 }
 
-function HistoryRow({ row }) {
+// Format an arbitrary AGOL field value for display in a history diff.
+// Heuristics:
+//   • null / '' / undefined  → em-dash placeholder
+//   • numeric "date-ish" field names → date format
+//   • plausible epoch ms (large positive integer) → date+time format
+//   • everything else → string (trimmed to a sensible length for the
+//     scannable inline display; the full value is in the title attr)
+function fmtHistoryValue(fieldName, v) {
+  if (v == null || v === '') return '—';
+  const lc = String(fieldName).toLowerCase();
+  const isDateField =
+    lc.includes('date') || lc === 'expected_arrival' ||
+    lc === 'item_mobilization' || lc === 'item_demobilization';
+  const n = Number(v);
+  // Date-like numeric → pretty date.
+  if (isDateField && Number.isFinite(n) && n > 1e11) {
+    // mobilization/demobilization are stored at UTC midnight; render in
+    // UTC so the date matches what the picker showed.
+    const d = new Date(n);
+    if (!Number.isNaN(d.getTime())) {
+      return d.toLocaleDateString(undefined, {
+        timeZone: 'UTC', month: 'numeric', day: 'numeric', year: 'numeric',
+      });
+    }
+  }
+  // Other plausible epoch ms (e.g. EditDate) — full timestamp.
+  if (!isDateField && Number.isFinite(n) && n > 1e12 && /(date|time|ts)$/i.test(fieldName)) {
+    const d = new Date(n);
+    if (!Number.isNaN(d.getTime())) return d.toLocaleString();
+  }
+  // Plain string — truncate very long notes so the row stays scannable.
+  const s = String(v);
+  if (s.length > 80) return s.slice(0, 80) + '…';
+  return s;
+}
+
+function HistoryRow({ row, previous }) {
   const a = HISTORY_SERVICE.audit;
   const when    = fmtDateTime(row[a.changeTs]);
   const author  = row[a.changedBy] || '—';
   const action  = row[a.action] || 'edit';
-  const prev    = row[a.prevStatus];
-  const next    = row[a.newStatus];
+
+  // Status changes have their own dedicated audit columns — use them
+  // directly so prev_status / new_status are always populated even for
+  // the very first history row (where there's no `previous` to diff
+  // against).
+  if (action === 'status_change') {
+    return (
+      <li className="followup-card">
+        <header className="followup-head">
+          <div className="followup-author">
+            <div className="followup-name-line">
+              <strong>{author}</strong>
+              <span className="dot muted">·</span>
+              <span className="muted small">status change</span>
+            </div>
+            {when && <span className="muted small">{when}</span>}
+          </div>
+        </header>
+        <div className="history-body">
+          <span className="history-transition">
+            <span className="history-status">{row[a.prevStatus] || '—'}</span>
+            <span className="history-arrow muted">→</span>
+            <span className="history-status">{row[a.newStatus] || '—'}</span>
+          </span>
+        </div>
+      </li>
+    );
+  }
+
+  // Edit row — render one diff line per changed field.
+  // Before-values come from the previous (older) history row's
+  // snapshot. If there's no previous row (or that row didn't capture
+  // this field), we fall back to em-dash.
   const changed = (row[a.changedFields] || '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
-
-  // Headline: status transition for status_change rows, a comma-list of
-  // field names for edits. We deliberately don't render before/after
-  // values for arbitrary fields — the snapshot is on the row if a
-  // future drill-down wants it, but the timeline stays scannable.
-  let headline;
-  if (action === 'status_change') {
-    headline = (
-      <span className="history-transition">
-        <span className="history-status">{prev || '—'}</span>
-        <span className="history-arrow muted">→</span>
-        <span className="history-status">{next || '—'}</span>
-      </span>
-    );
-  } else {
-    headline = (
-      <span>
-        Updated{changed.length > 0 ? ': ' : ''}
-        <span className="history-fields">{changed.join(', ') || '(no fields)'}</span>
-      </span>
-    );
-  }
 
   return (
     <li className="followup-card">
@@ -1169,14 +1356,35 @@ function HistoryRow({ row }) {
           <div className="followup-name-line">
             <strong>{author}</strong>
             <span className="dot muted">·</span>
-            <span className="muted small">
-              {action === 'status_change' ? 'status change' : 'edit'}
-            </span>
+            <span className="muted small">edit</span>
           </div>
           {when && <span className="muted small">{when}</span>}
         </div>
       </header>
-      <div className="history-body">{headline}</div>
+      <div className="history-body">
+        {changed.length === 0 ? (
+          <span className="muted small">(no fields recorded)</span>
+        ) : (
+          <ul className="history-diffs">
+            {changed.map((fieldName) => {
+              const beforeRaw = previous ? previous[fieldName] : undefined;
+              const afterRaw  = row[fieldName];
+              const before = fmtHistoryValue(fieldName, beforeRaw);
+              const after  = fmtHistoryValue(fieldName, afterRaw);
+              const fullBefore = beforeRaw == null ? '' : String(beforeRaw);
+              const fullAfter  = afterRaw  == null ? '' : String(afterRaw);
+              return (
+                <li key={fieldName} className="history-diff">
+                  <span className="history-diff-label">{labelFor(fieldName)}:</span>{' '}
+                  <span className="history-diff-before" title={fullBefore}>{before}</span>
+                  <span className="history-arrow muted"> → </span>
+                  <span className="history-diff-after" title={fullAfter}>{after}</span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
     </li>
   );
 }

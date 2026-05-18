@@ -144,6 +144,13 @@ export const FIELDS = {
   esf:             'coordinator',          // Coordinating ESF (select_one esf_list)
 
   // -- Location -----------------------------------------------------------
+  // Two fields work together: the user types into `userInputAddress`,
+  // which is the source of truth for "what did the user enter?". The
+  // geocoder's normalized form is stored separately in `address` so
+  // it can be used for joins, exports, and map display without losing
+  // the user's original spelling.
+  userInputAddress:'user_input_txt_rpt',
+  address:         'address_geo_rpt',
   county:          'county_rpt',
   region:          'region_rpt',
 
@@ -171,6 +178,73 @@ export const FIELDS = {
   // -- Status (Kanban writes here) ---------------------------------------
   status:          'item_status',
 };
+
+// ============================================================================
+//  FIELD_LABELS — human-readable labels keyed by AGOL field name. Used
+//  by the History tab to render diffs like "Team kind: Aircraft → Other"
+//  instead of the raw "team_kind" identifier. Unlisted fields fall back
+//  to a humanized version of the field name (underscores → spaces,
+//  initial caps), so it's safe to leave less-edited fields off this map.
+// ============================================================================
+export const FIELD_LABELS = {
+  // Status & dates
+  item_status:             'Status',
+  item_mobilization:       'Mobilization date',
+  item_demobilization:     'Demobilization date',
+  expected_arrival:        'Expected arrival',
+  expected_days_deployed:  'Expected days deployed',
+  days_deployed:           'Days deployed',
+  // Resource description
+  resource_kind:           'Resource kind',
+  resource_type:           'Resource type',
+  resource_main:           'Resource main',
+  resource_other:          'Other description',
+  team_kind:               'Team kind',
+  personnel_count:         'Personnel count',
+  identifier:              'Identifier',
+  equipment:               'Equipment',
+  equipment_type:          'Equipment type',
+  equipment_count:         'Equipment count',
+  tag_number:              'Tag number',
+  item:                    'Item',
+  qty_item:                'Quantity',
+  make:                    'Make',
+  serial:                  'Serial',
+  // Ownership / requesting
+  entity_rpt:              'Entity',
+  requestor_rpt:           'Requestor',
+  requesting_entity_rpt:   'Requesting entity',
+  coordinator:             'Coordinating ESF',
+  vendor_rpt:              'Vendor',
+  state_agency_rpt:        'State agency',
+  // Location
+  user_input_txt_rpt:      'Address',            // what the user typed (editable)
+  address_geo_rpt:         'Geocoded address',   // Census-normalized form
+  county_rpt:              'County',
+  region_rpt:              'Region',
+  // Mission
+  mission_id_rpt:          'Mission',
+  mission_detail_rpt:      'Mission detail',
+  mission_number_rpt:      'Mission number',
+  mission_year_rpt:        'Mission year',
+  mission_type:            'Mission type',
+  mission_status_rpt:      'Mission status',
+  request_number_rpt:      'Request number',
+  // Notes
+  note_rpt:                'Note',
+  resl_note:               'RESL note',
+  item_mobilization_note:  'Mobilization note',
+  item_demobilization_note:'Demobilization note',
+};
+
+// Humanize a raw AGOL field name as a fallback when it's not in
+// FIELD_LABELS. "team_kind" → "Team kind", "MCC_number" → "MCC number".
+export function labelFor(fieldName) {
+  if (FIELD_LABELS[fieldName]) return FIELD_LABELS[fieldName];
+  if (!fieldName) return '';
+  const spaced = String(fieldName).replace(/[_-]+/g, ' ').trim();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
 
 // ============================================================================
 //  MCC Status Mapper — secondary service joined to a resource record by

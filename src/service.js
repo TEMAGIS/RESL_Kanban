@@ -5,6 +5,7 @@
 
 import { CONFIG, FIELDS, MCC_SERVICE, FOLLOWUP_SERVICE, HISTORY_SERVICE } from './config.js';
 import { getToken, ensureFreshToken, clearStoredToken } from './auth.js';
+import { TN_STATE_FIPS, buildFips, lookupTnCounty } from './regions.js';
 
 async function arcgisFetch(url, init, _retried) {
   const res = await fetch(url, init);
@@ -108,19 +109,30 @@ async function logHistory({ before, after, action, changed }) {
     const TOKEN = getToken();
     const a = HISTORY_SERVICE.audit;
 
-    // Snapshot every mapped resource field from the post-edit record so
-    // each history row is self-contained — you can reconstruct any
-    // past state by reading a single row, no joins required.
-    // Skip the parent layer's ObjectID and GlobalID: the history layer
-    // has its own auto-generated values for both, and AGOL rejects
-    // attempts to set GlobalID on insert. The parent GlobalID is
-    // written separately into the parent_globalid audit field below
-    // (and the OID into source_oid).
+    // Snapshot every field from the post-edit record so each history
+    // row is self-contained — you can reconstruct any past state by
+    // reading a single row, no joins required. We iterate `after`
+    // directly (not just FIELDS-mapped names) so the snapshot captures
+    // every real field on the layer, including ones we don't reference
+    // explicitly in code (e.g. resource_other appears when team_kind
+    // = "Other" but isn't in our FIELDS map).
+    //
+    // Skip system-managed fields: AGOL controls these on the history
+    // layer just like it does on the resource layer, and writes to
+    // them are either ignored or rejected. ObjectID + GlobalID are
+    // surfaced separately via source_oid / parent_globalid below.
+    const SYSTEM_FIELDS = new Set([
+      FIELDS.objectId, FIELDS.globalId,
+      FIELDS.creationDate, FIELDS.creator,
+      FIELDS.editDate,     FIELDS.editor,
+      // Case-variant fallbacks — AGOL is sometimes inconsistent.
+      'objectid', 'OBJECTID', 'globalid', 'GlobalID', 'GLOBALID',
+      'CreationDate', 'Creator', 'EditDate', 'Editor',
+    ]);
     const snapshot = {};
-    for (const fieldName of Object.values(FIELDS)) {
-      if (fieldName === FIELDS.objectId) continue;
-      if (fieldName === FIELDS.globalId) continue;
-      if (after && Object.prototype.hasOwnProperty.call(after, fieldName)) {
+    if (after && typeof after === 'object') {
+      for (const fieldName of Object.keys(after)) {
+        if (SYSTEM_FIELDS.has(fieldName)) continue;
         snapshot[fieldName] = after[fieldName];
       }
     }
@@ -174,7 +186,10 @@ async function logHistory({ before, after, action, changed }) {
 // `partial` is an object of { fieldName: newValue } pairs.
 // `before` (optional) is the pre-edit row attributes — passing it lets
 // the history log diff old vs. new and capture a full snapshot.
-export async function updateAttributes(objectId, partial, before) {
+// `geometry` (optional) is an ArcGIS geometry object (e.g.
+// { x, y, spatialReference: { wkid: 4326 } }) — pass it when the edit
+// should move the record's point on the map (geocoded address change).
+export async function updateAttributes(objectId, partial, before, geometry) {
   await ensureFreshToken();
   const TOKEN = getToken();
 
@@ -182,10 +197,11 @@ export async function updateAttributes(objectId, partial, before) {
     [FIELDS.objectId]: objectId,
     ...partial,
   };
+  const update = geometry ? { attributes, geometry } : { attributes };
   const body = new URLSearchParams({
     f:        'json',
     token:    TOKEN.accessToken,
-    updates:  JSON.stringify([{ attributes }]),
+    updates:  JSON.stringify([update]),
   });
   const data = await arcgisFetch(`${CONFIG.serviceUrl}/applyEdits`, {
     method: 'POST',
@@ -226,6 +242,75 @@ export async function updateAttributes(objectId, partial, before) {
 // prev/new status fields.
 export async function updateStatus(objectId, newStatus, before) {
   return updateAttributes(objectId, { [FIELDS.status]: newStatus }, before);
+}
+
+// ─── Geocoder (Census Bureau) ─────────────────────────────────────────
+// Resolve a one-line address to coordinates + FIPS using the free,
+// public Census Bureau geocoder. Returns:
+//   {
+//     matchedAddress, lat, lng,
+//     stateFips, countyFips, fips,
+//     county, region,           // resolved from regions.js if TN
+//     isTn,                     // true iff state FIPS = 47
+//   }
+// Returns null if no match was found. Throws on transport errors.
+//
+// The `geographies/onelineaddress` endpoint returns the address match
+// AND the containing county polygon's FIPS in a single round-trip, so
+// we don't need a separate point-in-polygon query.
+//
+// We use vintage=Current_Current with benchmark=Public_AR_Current — the
+// "current" benchmark is the most generous about partial matches and is
+// fine for interactive use. Switch to Public_AR_Census2020 if you ever
+// need stable, repeatable results for audit purposes.
+const CENSUS_GEOCODER_URL =
+  'https://geocoding.geo.census.gov/geocoder/geographies/onelineaddress';
+
+export async function geocodeAddress(address) {
+  if (!address || !String(address).trim()) return null;
+
+  const params = new URLSearchParams({
+    address:   String(address).trim(),
+    benchmark: 'Public_AR_Current',
+    vintage:   'Current_Current',
+    layers:    'Counties',
+    format:    'json',
+  });
+
+  const res = await fetch(`${CENSUS_GEOCODER_URL}?${params}`);
+  if (!res.ok) throw new Error(`Geocoder HTTP ${res.status}`);
+  const data = await res.json();
+
+  const matches = (data && data.result && data.result.addressMatches) || [];
+  if (matches.length === 0) return null;
+
+  // Use the top match. The geocoder returns matches roughly by
+  // confidence; we don't second-guess.
+  const m = matches[0];
+  const lng = m.coordinates && m.coordinates.x;
+  const lat = m.coordinates && m.coordinates.y;
+
+  // County FIPS lives inside geographies.Counties[0]. STATE/COUNTY are
+  // 2-digit and 3-digit strings respectively; GEOID is the combined
+  // 5-digit form. Different Census responses populate these slightly
+  // differently — we read all three and reconcile.
+  const county = (m.geographies && m.geographies.Counties && m.geographies.Counties[0]) || null;
+  const stateFips  = county && (county.STATE || '');
+  const countyFips = county && (county.COUNTY || '');
+  const geoid      = county && (county.GEOID  || buildFips(stateFips, countyFips));
+
+  const tn = lookupTnCounty(geoid);
+
+  return {
+    matchedAddress: m.matchedAddress || String(address),
+    lng, lat,
+    stateFips,
+    countyFips,
+    fips:    geoid,
+    county:  tn ? tn.county : (county && county.NAME) || null,
+    region:  tn ? tn.region : null,
+    isTn:    stateFips === TN_STATE_FIPS,
+  };
 }
 
 // ─── History (audit log) reader ───────────────────────────────────────
