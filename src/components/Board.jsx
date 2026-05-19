@@ -513,7 +513,9 @@ export default function Board({ onSignOut }) {
       }
 
       try {
-        await createDeploymentFromInventory(mcc, inv, { status: 'Staged' });
+        // No starting status — the new card lands in Unassigned for
+        // the user to triage by dragging into a real status column.
+        await createDeploymentFromInventory(mcc, inv);
         // Refresh so the new deployment appears in the Staged column
         // and the inventory item drops out of `availableInventory`.
         await refresh();

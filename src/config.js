@@ -439,9 +439,14 @@ export const TEAM_KINDS = [
 //                    column. Accepts drops to clear `item_status`.
 export const COLUMNS = [
   // Leftmost column — TEMA assigned inventory. Cards are draggable;
-  // dropping one on an MCC card creates a new Equipment deployment.
+  // dropping one on an MCC card creates a new Equipment deployment
+  // (which lands in Unassigned just to the right).
   { id: 'inventory',   label: 'Inventory',   kind: 'inventory',  accent: '#7c3aed', defaultHidden: false },
   { id: 'mcc',         label: 'MCC',         kind: 'mcc',        accent: '#0b5fa5', defaultHidden: false },
+  // Unassigned sits next to MCC because newly-created inventory
+  // deployments land here for triage — dragging into a real status
+  // column is the next step.
+  { id: '_unassigned', label: 'Unassigned',  kind: 'unassigned', accent: '#94a3b8', defaultHidden: false },
   // Default-hidden statuses (still toggleable via the Columns control):
   // On Hold, Staged, and Canceled are typically less relevant to the
   // active operations view. En Route / On Scene / Demobilized stay
@@ -454,7 +459,6 @@ export const COLUMNS = [
   { id: 'onscene',     label: 'On Scene',    kind: 'status',     value: 'On Scene',    accent: '#228B22' },
   { id: 'demobilized', label: 'Demobilized', kind: 'status',     value: 'Demobilized', accent: '#ADADAD' },
   { id: 'canceled',    label: 'Canceled',    kind: 'status',     value: 'Canceled',    accent: '#6b7280', defaultHidden: true },
-  { id: '_unassigned', label: 'Unassigned',  kind: 'unassigned', accent: '#94a3b8', defaultHidden: true },
 ];
 
 // Derived: just the drag-drop status columns (used by the drop handler

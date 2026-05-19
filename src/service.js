@@ -525,11 +525,12 @@ export async function fetchAllInventory() {
 //   • Resource — from inventory: tag_number, item, make, serial
 //     (=model), resl_note (=description).
 //   • Defaults — resource_kind = 'Equipment', equipment_count = 1,
-//     item_status = 'Staged'.
+//     item_status = null (so the new card lands in the Unassigned
+//     column for the user to triage / drag to a real status).
 // History log fires the normal way (via the addFeatures path is NOT
 // the same as applyEdits, so we log manually here with action='create').
 // Returns the addResults entry, including the new objectId.
-export async function createDeploymentFromInventory(mcc, inv, { status = 'Staged' } = {}) {
+export async function createDeploymentFromInventory(mcc, inv, { status = null } = {}) {
   if (!mcc) throw new Error('Missing MCC record');
   if (!inv) throw new Error('Missing inventory item');
 
