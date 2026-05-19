@@ -69,6 +69,19 @@ function readUrlReadOnly() {
   return s === '1' || s === 'true' || s === 'yes' || s === 'on';
 }
 
+// Hide the inventory column entirely (skips the fetch, removes the
+// column from the board AND from the Columns toggle menu) when
+// `?hide_inventory=1` (or true/yes/on) is in the URL. Lets you embed
+// scoped views — e.g. a stakeholder-facing board — without the
+// inventory tooling visible.
+function readUrlHideInventory() {
+  if (typeof window === 'undefined') return false;
+  const v = new URLSearchParams(window.location.search).get('hide_inventory');
+  if (!v) return false;
+  const s = v.trim().toLowerCase();
+  return s === '1' || s === 'true' || s === 'yes' || s === 'on';
+}
+
 // Read URL parameters once at boot. Any LOCKABLE_FILTER key present
 // in `?mission=...&esf=...` becomes both the initial value AND a
 // locked filter the user can't change in-session. Allows sharing or
@@ -249,6 +262,13 @@ export default function Board({ onSignOut }) {
   const [missionFollowups, setMissionFollowups] = useState([]);
   const [readOnly]     = useState(() => readUrlReadOnly());
   const [allowedMissions] = useState(() => readUrlMissionScope());
+  // URL-driven kill switch for the inventory column. Read once at
+  // boot; baked into `disabledColumnIds` for the render + toggle paths.
+  const [hideInventory] = useState(() => readUrlHideInventory());
+  const disabledColumnIds = useMemo(
+    () => new Set(hideInventory ? ['inventory'] : []),
+    [hideInventory],
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -264,16 +284,21 @@ export default function Board({ onSignOut }) {
       // resources) on the first paint. MCC failure is non-fatal — we
       // log and proceed with an empty MCC list so the picker still
       // works off the resources fallback below.
+      // Inventory fetch is skipped when ?hide_inventory=1 — no point
+      // burning bandwidth on a list we won't render. Still tracked
+      // here so the inventory state stays as an empty array.
       const [resData, mccData, invData] = await Promise.all([
         fetchAllResources(),
         fetchAllMccs().catch((err) => {
           console.warn('[RESL-Kanban] fetchAllMccs failed:', err);
           return [];
         }),
-        fetchAllInventory().catch((err) => {
-          console.warn('[RESL-Kanban] fetchAllInventory failed:', err);
-          return [];
-        }),
+        hideInventory
+          ? Promise.resolve([])
+          : fetchAllInventory().catch((err) => {
+              console.warn('[RESL-Kanban] fetchAllInventory failed:', err);
+              return [];
+            }),
       ]);
       setResources(resData);
       setAllMccs(mccData);
@@ -637,6 +662,7 @@ export default function Board({ onSignOut }) {
             <SortToggle sortBy={sortBy} onSortBy={setSortBy} />
             <ColumnToggles
               hiddenColumns={hiddenColumns}
+              disabledColumnIds={disabledColumnIds}
               onToggleColumn={toggleColumn}
               onResetColumns={resetColumns}
             />
@@ -665,7 +691,9 @@ export default function Board({ onSignOut }) {
             onDragCancel={() => setActiveId(null)}
           >
             <div className="board">
-              {COLUMNS.filter((c) => !hiddenColumns.has(c.id)).map((c) => {
+              {COLUMNS
+                .filter((c) => !hiddenColumns.has(c.id) && !disabledColumnIds.has(c.id))
+                .map((c) => {
                 if (c.kind === 'inventory') {
                   return (
                     <InventoryColumn

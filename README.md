@@ -139,11 +139,20 @@ Supported parameters:
 | `kind` | Resource Kind | `?kind=Equipment` |
 | `county` | County | `?county=Davidson` |
 | `readonly` | Disables drag-drop AND editing in the detail modal | `?readonly=1` (also accepts `true`, `yes`, `on`) |
+| `hide_inventory` | Removes the Inventory column from the board AND the Columns toggle menu | `?hide_inventory=1` (also accepts `true`, `yes`, `on`) |
 
 Read-only mode is great for stakeholder/public dashboard embeds where
 viewers should be able to see and search the data but never accidentally
 move a card or change a field. The header shows a small "🔒 Read-only"
 chip so it's clear what mode the view is in.
+
+`hide_inventory` is for scoped embeds where the TEMA assigned-inventory
+workflow shouldn't be visible — e.g. a public stakeholder dashboard, or
+an Experience Builder view focused only on MCC + status columns. When
+set, the inventory fetch is skipped entirely (no extra bandwidth) and
+the column is removed from both the board and the Columns toggle so it
+can't be brought back in-session. Combines naturally with `readonly=1`
+for a fully view-only public board.
 
 Combine any number of them: `?mission=...&esf=...`. **You must URL-encode
 `#` as `%23`** — a literal `#` in a URL marks the fragment, so anything
