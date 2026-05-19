@@ -540,6 +540,7 @@ export default function Board({ onSignOut }) {
         <>
       <MainFilters
         resources={resources}
+        mccs={allMccs}
         filters={filters}
         onFilters={setFilters}
         lockedFilters={lockedFilters}

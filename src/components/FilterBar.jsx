@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { COLUMNS } from '../config.js';
+import { COLUMNS, MCC_SERVICE } from '../config.js';
 
 // Compute unique non-empty values for a field, sorted alphabetically.
 function uniques(rows, key) {
@@ -20,9 +20,19 @@ function uniques(rows, key) {
 //  is a Set of filter keys (e.g. {'mission','esf'}) that came from URL
 //  parameters at boot — those dropdowns render disabled with a lock
 //  marker and are excluded from the active-count and Clear behavior.
-export function MainFilters({ resources, filters, onFilters, lockedFilters = new Set(), allowedMissions = null }) {
+export function MainFilters({ resources, mccs = [], filters, onFilters, lockedFilters = new Set(), allowedMissions = null }) {
+  // Mission options come from the MCC layer (same source as the
+  // post-login mission picker) so missions with MCCs but no deployments
+  // still appear here. Resources contribute a defensive union — covers
+  // the edge case of a deployment without an MCC.
   const missions = useMemo(() => {
-    let opts = uniques(resources, 'mission_id_rpt');
+    const incidentIdField = MCC_SERVICE.fields.incidentId;
+    const fromMcc       = uniques(mccs, incidentIdField);
+    const fromResources = uniques(resources, 'mission_id_rpt');
+    const set = new Set([...fromMcc, ...fromResources]);
+    let opts = Array.from(set).sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }),
+    );
     if (allowedMissions && allowedMissions.length) {
       const allow = new Set(
         allowedMissions.map((s) => String(s).trim().toLowerCase()),
@@ -30,7 +40,7 @@ export function MainFilters({ resources, filters, onFilters, lockedFilters = new
       opts = opts.filter((o) => allow.has(String(o).trim().toLowerCase()));
     }
     return opts;
-  }, [resources, allowedMissions]);
+  }, [mccs, resources, allowedMissions]);
   const esfs     = useMemo(() => uniques(resources, 'coordinator'),    [resources]);
   const counties = useMemo(() => uniques(resources, 'county_rpt'),     [resources]);
   const kinds    = useMemo(() => uniques(resources, 'resource_kind'),  [resources]);
