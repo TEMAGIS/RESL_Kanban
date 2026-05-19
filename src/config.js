@@ -417,12 +417,18 @@ export const TEAM_KINDS = [
 //                    column. Accepts drops to clear `item_status`.
 export const COLUMNS = [
   { id: 'mcc',         label: 'MCC',         kind: 'mcc',        accent: '#0b5fa5', defaultHidden: false },
-  { id: 'onhold',      label: 'On Hold',     kind: 'status',     value: 'On Hold',     accent: '#45C8ED' },
-  { id: 'staged',      label: 'Staged',      kind: 'status',     value: 'Staged',      accent: '#FCFF00' },
+  // Default-hidden statuses (still toggleable via the Columns control):
+  // On Hold, Staged, and Canceled are typically less relevant to the
+  // active operations view. En Route / On Scene / Demobilized stay
+  // visible on first load so the board reads as "where's everything
+  // moving and what's wrapped up". Toggle in the Columns picker to
+  // reveal the rest.
+  { id: 'onhold',      label: 'On Hold',     kind: 'status',     value: 'On Hold',     accent: '#45C8ED', defaultHidden: true },
+  { id: 'staged',      label: 'Staged',      kind: 'status',     value: 'Staged',      accent: '#FCFF00', defaultHidden: true },
   { id: 'enroute',     label: 'En Route',    kind: 'status',     value: 'En Route',    accent: '#2563eb' },
   { id: 'onscene',     label: 'On Scene',    kind: 'status',     value: 'On Scene',    accent: '#228B22' },
   { id: 'demobilized', label: 'Demobilized', kind: 'status',     value: 'Demobilized', accent: '#ADADAD' },
-  { id: 'canceled',    label: 'Canceled',    kind: 'status',     value: 'Canceled',    accent: '#6b7280' },
+  { id: 'canceled',    label: 'Canceled',    kind: 'status',     value: 'Canceled',    accent: '#6b7280', defaultHidden: true },
   { id: '_unassigned', label: 'Unassigned',  kind: 'unassigned', accent: '#94a3b8', defaultHidden: true },
 ];
 
