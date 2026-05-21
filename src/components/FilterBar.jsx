@@ -114,6 +114,14 @@ export function SortToggle({ sortBy, onSortBy }) {
       >
         Request #
       </button>
+      <button
+        type="button"
+        className={`seg-btn${sortBy === 'urgency' ? ' is-on' : ''}`}
+        onClick={() => onSortBy('urgency')}
+        title="Most overdue for a followup at top; cards with no followup frequency at bottom"
+      >
+        Urgency
+      </button>
     </div>
   );
 }

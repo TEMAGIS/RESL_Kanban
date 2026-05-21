@@ -152,6 +152,20 @@ function cmpRequest(a, b) {
   return av - bv;
 }
 
+// Returns a comparator that sorts by pre-computed urgency score (highest
+// first). Records with no score (non-applicable statuses, no frequency)
+// are placed at the bottom.
+function makeUrgencyCmp(scoreByOid) {
+  return (a, b) => {
+    const as = scoreByOid.get(a[FIELDS.objectId]) ?? -Infinity;
+    const bs = scoreByOid.get(b[FIELDS.objectId]) ?? -Infinity;
+    if (as === bs) return 0;
+    if (as === -Infinity) return  1;  // a has no score → bottom
+    if (bs === -Infinity) return -1;  // b has no score → bottom
+    return bs - as;                   // higher score first
+  };
+}
+
 // Normalize for filter comparison: trim, lowercase, collapse runs of
 // whitespace. Helps URL-driven filters tolerate small differences like
 // case, accidental double-spaces, or trailing whitespace from copy/paste.
@@ -402,25 +416,45 @@ export default function Board({ onSignOut }) {
   // currently-selected mission, so this naturally scopes to the visible
   // board. When no mission is selected both maps are empty and nothing
   // triggers — consistent with the rest of the board's behavior.
-  const { needsFollowupByOid, mccNeedsFollowupSet } = useMemo(() => {
-    const byOid  = new Map();
-    const mccSet = new Set();
-    const now    = Date.now();
-    const TERMINAL = new Set(['Demobilized', 'Canceled']);
+  const { needsFollowupByOid, mccNeedsFollowupSet, urgencyScoreByOid, mccMaxUrgencyScore } = useMemo(() => {
+    const byOid       = new Map();
+    const mccSet      = new Set();
+    const scoreByOid  = new Map();
+    const mccMaxScore = new Map();
+    const now         = Date.now();
+    const SKIP_STATUSES = new Set(['Demobilized', 'Canceled', 'On Hold']);
     for (const r of resources) {
       const freq = Number(r[FIELDS.followupFrequency]);
       if (!Number.isFinite(freq) || freq <= 0) continue;
       const status = String(r[FIELDS.status] || '').trim();
-      if (TERMINAL.has(status)) continue;
-      const reqKey  = String(r[FIELDS.requestNumber] ?? '').trim();
+      // Skip terminal statuses, On Hold, and Unassigned (blank status).
+      if (!status || SKIP_STATUSES.has(status)) continue;
+      const reqKey   = String(r[FIELDS.requestNumber] ?? '').trim();
       const latestTs = reqKey ? (latestFollowupByMcc.get(reqKey) || 0) : 0;
-      const needed   = !latestTs || (now - latestTs) > freq * 3_600_000;
-      if (needed) {
+      const freqMs   = freq * 3_600_000;
+      // Urgency = ratio of elapsed time vs. required interval. > 1 = overdue.
+      // If never followed up (latestTs=0) treat elapsed as `now` (epoch) so
+      // those records sort above anything with a known (but stale) followup.
+      const elapsed = latestTs > 0 ? (now - latestTs) : now;
+      const score   = elapsed / freqMs;
+
+      scoreByOid.set(r[FIELDS.objectId], score);
+      if (score > 1) {
         byOid.set(r[FIELDS.objectId], true);
         if (reqKey) mccSet.add(reqKey);
       }
+      // Track the highest urgency score per MCC so MCC cards can be sorted.
+      if (reqKey) {
+        const prev = mccMaxScore.get(reqKey) ?? -Infinity;
+        if (score > prev) mccMaxScore.set(reqKey, score);
+      }
     }
-    return { needsFollowupByOid: byOid, mccNeedsFollowupSet: mccSet };
+    return {
+      needsFollowupByOid:  byOid,
+      mccNeedsFollowupSet: mccSet,
+      urgencyScoreByOid:   scoreByOid,
+      mccMaxUrgencyScore:  mccMaxScore,
+    };
   }, [resources, latestFollowupByMcc]);
 
   // Whether the post-OAuth mission picker should take over the body.
@@ -448,7 +482,20 @@ export default function Board({ onSignOut }) {
   //   "Request #" → MCC number ascending
   const sortedFilteredMccs = useMemo(() => {
     const arr = filteredMccs.slice();
-    if (sortBy === 'updated') {
+    if (sortBy === 'urgency') {
+      // Sort MCCs by the highest urgency score among their deployments.
+      // MCCs with no scored deployments go to the bottom.
+      arr.sort((a, b) => {
+        const aKey = String(a[MCC_SERVICE.fields.mccNumber] ?? '').trim();
+        const bKey = String(b[MCC_SERVICE.fields.mccNumber] ?? '').trim();
+        const as = mccMaxUrgencyScore.get(aKey) ?? -Infinity;
+        const bs = mccMaxUrgencyScore.get(bKey) ?? -Infinity;
+        if (as === bs) return 0;
+        if (as === -Infinity) return  1;
+        if (bs === -Infinity) return -1;
+        return bs - as;           // higher score first
+      });
+    } else if (sortBy === 'updated') {
       arr.sort((a, b) => {
         const aKey = String(a[MCC_SERVICE.fields.mccNumber] ?? '').trim();
         const bKey = String(b[MCC_SERVICE.fields.mccNumber] ?? '').trim();
@@ -472,7 +519,7 @@ export default function Board({ onSignOut }) {
       });
     }
     return arr;
-  }, [filteredMccs, sortBy, latestFollowupByMcc]);
+  }, [filteredMccs, sortBy, latestFollowupByMcc, mccMaxUrgencyScore]);
 
   // Denominator for "X of Y resources" — only counts resources in the
   // currently-selected mission (not the entire feature service), so the
@@ -489,13 +536,16 @@ export default function Board({ onSignOut }) {
       const col = statusToColumnId(r[FIELDS.status]);
       (out[col] || out._unassigned).push(r);
     }
-    // Sort each column's cards. 'updated' = most recent first;
-    // 'request' = lowest request number first. Missing values land at
-    // the end either way.
-    const cmp = sortBy === 'request' ? cmpRequest : cmpUpdated;
+    // Sort each column's cards.
+    //   'updated'  = most recently edited/created first
+    //   'request'  = lowest request number first
+    //   'urgency'  = most overdue followup first; no-frequency cards at bottom
+    const cmp = sortBy === 'request' ? cmpRequest
+              : sortBy === 'urgency' ? makeUrgencyCmp(urgencyScoreByOid)
+              : cmpUpdated;
     for (const k of Object.keys(out)) out[k].sort(cmp);
     return out;
-  }, [filtered, sortBy]);
+  }, [filtered, sortBy, urgencyScoreByOid]);
 
   // tag_number → current deployment record. Used by the inventory
   // column to render a colored status pill on each item and to lock
