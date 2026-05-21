@@ -46,7 +46,7 @@ function describeRecent(ms) {
 
 // MCC column — source of deployments. Not a drag-drop target. Cards
 // render basic MCC info and open a read-only popup when clicked.
-export default function MccColumn({ label, accent, mccs, latestFollowupByMcc, onFilter, onShowDetail }) {
+export default function MccColumn({ label, accent, mccs, latestFollowupByMcc, mccNeedsFollowupSet, onFilter, onShowDetail }) {
   return (
     <div className="column is-static" style={{ '--column-accent': accent }}>
       <header className="column-header">
@@ -62,11 +62,13 @@ export default function MccColumn({ label, accent, mccs, latestFollowupByMcc, on
             const num = m[MCC_SERVICE.fields.mccNumber];
             const key = num != null ? String(num).trim() : '';
             const lastFu = key && latestFollowupByMcc ? latestFollowupByMcc.get(key) : null;
+            const needsFollowup = key && mccNeedsFollowupSet ? mccNeedsFollowupSet.has(key) : false;
             return (
               <MccCard
                 key={m[MCC_SERVICE.fields.objectId] ?? m[MCC_SERVICE.fields.globalId]}
                 m={m}
                 lastFollowupTs={lastFu}
+                needsFollowup={needsFollowup}
                 onFilter={() => onFilter && onFilter(m)}
                 onShowDetail={() => onShowDetail && onShowDetail(m)}
               />
@@ -86,7 +88,7 @@ const v = (m, k) => {
   return s.length ? s : null;
 };
 
-function MccCard({ m, lastFollowupTs, onFilter, onShowDetail }) {
+function MccCard({ m, lastFollowupTs, needsFollowup = false, onFilter, onShowDetail }) {
   const f = MCC_SERVICE.fields;
   const mccNum   = v(m, f.mccNumber);
   const subject  = v(m, f.subject);
@@ -129,7 +131,7 @@ function MccCard({ m, lastFollowupTs, onFilter, onShowDetail }) {
   return (
     <div
       ref={setNodeRef}
-      className={`card mcc-card${lastFu.tier ? ` is-fresh-${lastFu.tier}` : ''}${dropClass}`}
+      className={`card mcc-card${lastFu.tier ? ` is-fresh-${lastFu.tier}` : ''}${needsFollowup ? ' needs-followup' : ''}${dropClass}`}
       role="button"
       tabIndex={0}
       onClick={onFilter}
@@ -156,6 +158,12 @@ function MccCard({ m, lastFollowupTs, onFilter, onShowDetail }) {
             <div className={`card-updated small${lastFu.tier ? ` is-fresh-${lastFu.tier}` : ' muted'}`}>
               {lastFu.tier === 'hour' && <span className="fresh-dot" aria-hidden="true" />}
               Last followup {lastFu.text}
+            </div>
+          )}
+          {needsFollowup && (
+            <div className="followup-needed small">
+              <span className="followup-dot" aria-hidden="true" />
+              Followup needed
             </div>
           )}
           {status && <div className="card-county muted small">{status}</div>}

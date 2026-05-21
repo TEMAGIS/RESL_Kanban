@@ -710,6 +710,43 @@ button { font-family: inherit; cursor: pointer; }
   50%      { opacity: 0.5; transform: scale(0.8); }
 }
 
+/* ─── Followup-needed highlight ──────────────────────────────────────
+   Red left border + faint red gradient. Takes visual priority over the
+   stale (amber) treatment — both classes can coexist but "needs
+   followup" is more urgent so it appears last in the cascade. */
+.card.needs-followup {
+  background: linear-gradient(180deg, #fef2f2 0%, #ffffff 60%);
+  border-left-color: #dc2626;
+  animation: followup-pulse 2.2s ease-in-out infinite;
+}
+@keyframes followup-pulse {
+  0%, 100% { box-shadow: var(--shadow), 0 0 0 0 rgba(220, 38, 38, 0); }
+  50%       { box-shadow: var(--shadow), 0 0 0 3px rgba(220, 38, 38, 0.18); }
+}
+
+.followup-needed {
+  display: inline-flex;
+  align-items: center;
+  color: #991b1b;
+  font-weight: 600;
+  line-height: 1.2;
+  margin-top: 1px;
+}
+
+.followup-dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: #dc2626;
+  margin-right: 4px;
+  vertical-align: 1px;
+  animation: followup-dot-blink 1.3s ease-in-out infinite;
+}
+@keyframes followup-dot-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+
 /* Info button (top-right corner of the card) — always visible so
    users don't have to discover it. Soft pill that fills on hover. */
 .card-info-btn {

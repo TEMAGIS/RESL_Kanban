@@ -2,12 +2,12 @@ import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { COLUMNS, FIELDS, statusToColumnId } from '../config.js';
 
-export default function Card({ r, pending = false, dragging = false, readOnly = false, onShowDetail }) {
+export default function Card({ r, pending = false, dragging = false, needsFollowup = false, readOnly = false, onShowDetail }) {
   if (dragging) return <CardView r={r} pending={pending} dragging />;
-  return <DraggableCard r={r} pending={pending} readOnly={readOnly} onShowDetail={onShowDetail} />;
+  return <DraggableCard r={r} pending={pending} needsFollowup={needsFollowup} readOnly={readOnly} onShowDetail={onShowDetail} />;
 }
 
-function DraggableCard({ r, pending, readOnly, onShowDetail }) {
+function DraggableCard({ r, pending, needsFollowup, readOnly, onShowDetail }) {
   const oid = r[FIELDS.objectId];
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: String(oid),
@@ -21,6 +21,7 @@ function DraggableCard({ r, pending, readOnly, onShowDetail }) {
     <CardView
       r={r}
       pending={pending}
+      needsFollowup={needsFollowup}
       style={style}
       forwardRef={setNodeRef}
       handleProps={{ ...attributes, ...listeners }}
@@ -181,7 +182,7 @@ function statusAccent(status) {
 }
 
 // ─── Render ────────────────────────────────────────────────────────────
-function CardView({ r, pending, style, dragging = false, forwardRef, handleProps = {}, onShowDetail }) {
+function CardView({ r, pending, needsFollowup = false, style, dragging = false, forwardRef, handleProps = {}, onShowDetail }) {
   const oid       = r[FIELDS.objectId];
   const reqNum    = v(r, FIELDS.requestNumber);
   const county    = v(r, FIELDS.county);
@@ -210,7 +211,7 @@ function CardView({ r, pending, style, dragging = false, forwardRef, handleProps
     <div
       ref={forwardRef}
       style={style}
-      className={`card${dragging ? ' is-dragging' : ''}${pending ? ' is-pending' : ''}${edit.tier ? ` is-${edit.tier === 'stale' ? 'stale' : `fresh-${edit.tier}`}` : ''}`}
+      className={`card${dragging ? ' is-dragging' : ''}${pending ? ' is-pending' : ''}${edit.tier ? ` is-${edit.tier === 'stale' ? 'stale' : `fresh-${edit.tier}`}` : ''}${needsFollowup ? ' needs-followup' : ''}`}
       {...handleProps}
     >
       {onShowDetail && !dragging && (
@@ -236,6 +237,12 @@ function CardView({ r, pending, style, dragging = false, forwardRef, handleProps
               {edit.tier === 'hour'  && <span className="fresh-dot" aria-hidden="true" />}
               {edit.tier === 'stale' && <span className="stale-dot" aria-hidden="true" />}
               Updated {edit.text}
+            </div>
+          )}
+          {needsFollowup && !dragging && (
+            <div className="followup-needed small">
+              <span className="followup-dot" aria-hidden="true" />
+              Followup needed
             </div>
           )}
         </div>

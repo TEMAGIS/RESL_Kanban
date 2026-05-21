@@ -175,6 +175,9 @@ export const FIELDS = {
   // -- Editable fields ----------------------------------------------------
   missionType:     'mission_type',
 
+  // -- Followup frequency (hours between required followups) ------------
+  followupFrequency: 'followup_frequency',
+
   // -- Status (Kanban writes here) ---------------------------------------
   status:          'item_status',
 };

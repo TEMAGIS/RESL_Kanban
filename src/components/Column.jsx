@@ -2,7 +2,7 @@ import { useDroppable } from '@dnd-kit/core';
 import { FIELDS } from '../config.js';
 import Card from './Card.jsx';
 
-export default function Column({ id, label, accent, resources, pending, droppable, readOnly = false, onShowDetail, hint }) {
+export default function Column({ id, label, accent, resources, pending, needsFollowupByOid, droppable, readOnly = false, onShowDetail, hint }) {
   // In read-only mode the column is never a drop target — even if
   // droppable was true — and cards inside are not draggable.
   const dropOn = droppable && !readOnly;
@@ -25,6 +25,7 @@ export default function Column({ id, label, accent, resources, pending, droppabl
             key={r[FIELDS.objectId]}
             r={r}
             pending={pending.has(r[FIELDS.objectId])}
+            needsFollowup={needsFollowupByOid ? needsFollowupByOid.has(r[FIELDS.objectId]) : false}
             readOnly={readOnly}
             onShowDetail={onShowDetail}
           />

@@ -380,6 +380,39 @@ export default function Board({ onSignOut }) {
     return { latestFollowupByMcc: latest, followupCountByMcc: count };
   }, [missionFollowups]);
 
+  // Which deployment ObjectIDs need a followup right now, and which MCC
+  // request numbers have at least one such deployment. A resource needs
+  // a followup when:
+  //   • It has followup_frequency set (> 0 hours), AND
+  //   • Its status is not Demobilized or Canceled (terminal), AND
+  //   • Either no followup has ever been logged, OR the latest followup
+  //     for its MCC+mission is older than followup_frequency hours.
+  //
+  // latestFollowupByMcc is keyed by mcc_no (= request_number_rpt) for the
+  // currently-selected mission, so this naturally scopes to the visible
+  // board. When no mission is selected both maps are empty and nothing
+  // triggers — consistent with the rest of the board's behavior.
+  const { needsFollowupByOid, mccNeedsFollowupSet } = useMemo(() => {
+    const byOid  = new Map();
+    const mccSet = new Set();
+    const now    = Date.now();
+    const TERMINAL = new Set(['Demobilized', 'Canceled']);
+    for (const r of resources) {
+      const freq = Number(r[FIELDS.followupFrequency]);
+      if (!Number.isFinite(freq) || freq <= 0) continue;
+      const status = String(r[FIELDS.status] || '').trim();
+      if (TERMINAL.has(status)) continue;
+      const reqKey  = String(r[FIELDS.requestNumber] ?? '').trim();
+      const latestTs = reqKey ? (latestFollowupByMcc.get(reqKey) || 0) : 0;
+      const needed   = !latestTs || (now - latestTs) > freq * 3_600_000;
+      if (needed) {
+        byOid.set(r[FIELDS.objectId], true);
+        if (reqKey) mccSet.add(reqKey);
+      }
+    }
+    return { needsFollowupByOid: byOid, mccNeedsFollowupSet: mccSet };
+  }, [resources, latestFollowupByMcc]);
+
   // Whether the post-OAuth mission picker should take over the body.
   // Picker shows when:
   //   • We have data (resources.length > 0 OR we tried & loaded),
@@ -814,6 +847,7 @@ export default function Board({ onSignOut }) {
                       accent={c.accent}
                       mccs={sortedFilteredMccs}
                       latestFollowupByMcc={latestFollowupByMcc}
+                      mccNeedsFollowupSet={mccNeedsFollowupSet}
                       onFilter={() => {}}
                       onShowDetail={setMccDetailRow}
                     />
@@ -828,6 +862,7 @@ export default function Board({ onSignOut }) {
                       accent={c.accent}
                       resources={grouped._unassigned}
                       pending={pending}
+                      needsFollowupByOid={needsFollowupByOid}
                       droppable
                       readOnly={readOnly}
                       onShowDetail={setDetailRow}
@@ -844,6 +879,7 @@ export default function Board({ onSignOut }) {
                     accent={c.accent}
                     resources={grouped[c.id] || []}
                     pending={pending}
+                    needsFollowupByOid={needsFollowupByOid}
                     droppable
                     readOnly={readOnly}
                     onShowDetail={setDetailRow}
