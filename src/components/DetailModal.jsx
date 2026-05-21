@@ -1054,6 +1054,15 @@ export default function DetailModal({ r, followupCount = 0, onClose, onUpdate })
             },
             { label: 'Days deployed',      value: r.days_deployed },
             { label: 'Expected days',      value: r.expected_days_deployed },
+            {
+              label: 'Followup every (hrs)',
+              value: r[FIELDS.followupFrequency],
+              editable: true,
+              type: 'number',
+              field: FIELDS.followupFrequency,
+              objectId: r[FIELDS.objectId],
+              onUpdate,
+            },
           ]} />
 
           <Section title="Notes" rows={[

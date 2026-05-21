@@ -160,6 +160,7 @@ export const FIELDS = {
   expectedArrival: 'expected_arrival',
   editDate:        'EditDate',
 
+  // -- Followup cadence ---------------------------------------------------
   // -- Notes & audit ------------------------------------------------------
   note:            'note_rpt',
   reslNote:        'resl_note',
@@ -179,7 +180,7 @@ export const FIELDS = {
   followupFrequency: 'followup_frequency',
 
   // -- Status (Kanban writes here) ---------------------------------------
-  status:          'item_status',
+  status:            'item_status',
 };
 
 // ============================================================================
@@ -233,6 +234,8 @@ export const FIELD_LABELS = {
   mission_type:            'Mission type',
   mission_status_rpt:      'Mission status',
   request_number_rpt:      'Request number',
+  // Followup
+  followup_frequency:      'Followup frequency (hrs)',
   // Notes
   note_rpt:                'Note',
   resl_note:               'RESL note',
