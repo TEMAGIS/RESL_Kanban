@@ -49,9 +49,27 @@ const STALE_HOURS = 72;          // tweak to taste
 //   tier = 'today' — edited since local midnight (light blue)
 //   tier = 'stale' — active deployment but not edited in 72+ hours (amber)
 //   tier = null    — anything else (no highlight)
-function describeEditDate(ms, status) {
+//
+// `editMs`   — EditDate epoch ms (set by AGOL on applyEdits)
+// `createMs` — CreationDate epoch ms (set once when the record is first added)
+//
+// Survey123 Repeat View layers often assign the same server timestamp as
+// EditDate for every record in a batch submission, making all cards appear
+// to share one time. CreationDate is stamped individually per record by
+// AGOL on addFeatures, so it is unique per submission. We use
+// max(EditDate, CreationDate) as the effective "last touched" time:
+//   • After a drag-drop or modal edit, EditDate > CreationDate → shows EditDate
+//   • For unedited Survey123 records, CreationDate is per-record → shows that
+function describeEditDate(editMs, createMs, status) {
   const isActive = ACTIVE_DEPLOYMENT_STATUSES.includes(status);
-  const n = ms == null || ms === '' ? NaN : Number(ms);
+  const en = editMs  == null || editMs  === '' ? NaN : Number(editMs);
+  const cn = createMs == null || createMs === '' ? NaN : Number(createMs);
+
+  // Pick the most recent valid timestamp.
+  let n = NaN;
+  if (Number.isFinite(en) && en > 0) n = en;
+  if (Number.isFinite(cn) && cn > 0 && (Number.isNaN(n) || cn > n)) n = cn;
+
   const valid = Number.isFinite(n) && n > 0;
 
   // No edit date AND actively deployed → that's stale (and unusual)
@@ -186,7 +204,7 @@ function CardView({ r, pending, needsFollowup = false, style, dragging = false, 
   const oid       = r[FIELDS.objectId];
   const reqNum    = v(r, FIELDS.requestNumber);
   const county    = v(r, FIELDS.county);
-  const edit      = describeEditDate(r[FIELDS.editDate], r[FIELDS.status]);
+  const edit      = describeEditDate(r[FIELDS.editDate], r[FIELDS.creationDate], r[FIELDS.status]);
   const entity    = v(r, FIELDS.entity);
   const esf       = v(r, FIELDS.esf);
   const status    = v(r, FIELDS.status);

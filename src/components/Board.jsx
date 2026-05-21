@@ -114,12 +114,22 @@ const SEARCHABLE = [
 ];
 
 // Sort comparators ----------------------------------------------------
-// Most recent EditDate first; missing → end.
+// Most recent "effective" timestamp first; missing → end.
+// Uses max(EditDate, CreationDate) to match the timestamp shown on cards
+// (see describeEditDate in Card.jsx — Survey123 repeat records often share
+// the same EditDate from a batch insert; CreationDate is per-record).
+function effectiveTs(r) {
+  const e = Number(r.EditDate    || 0);
+  const c = Number(r.CreationDate || 0);
+  const ev = Number.isFinite(e) && e > 0 ? e : 0;
+  const cv = Number.isFinite(c) && c > 0 ? c : 0;
+  return Math.max(ev, cv);
+}
 function cmpUpdated(a, b) {
-  const av = Number(a.EditDate);
-  const bv = Number(b.EditDate);
-  const ag = Number.isFinite(av) && av > 0;
-  const bg = Number.isFinite(bv) && bv > 0;
+  const av = effectiveTs(a);
+  const bv = effectiveTs(b);
+  const ag = av > 0;
+  const bg = bv > 0;
   if (!ag && !bg) return 0;
   if (!ag) return 1;
   if (!bg) return -1;
