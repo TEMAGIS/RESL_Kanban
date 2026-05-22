@@ -1,18 +1,24 @@
 import { useDroppable } from '@dnd-kit/core';
 import { MCC_SERVICE } from '../config.js';
 
-// Same forgiving formatter as DetailModal — handles epoch ms AND ISO
-// date strings (some MCC date fields are stored as strings).
-function fmtDateTime(v) {
+// Compact date formatter — "M/D h:mma" (e.g. "5/22 10:30a").
+// Handles epoch ms AND ISO date strings.
+function fmtShort(v) {
   if (v == null || v === '') return null;
   const n = Number(v);
+  let d;
   if (Number.isFinite(n) && n > 0) {
-    const d = new Date(n);
-    if (!Number.isNaN(d.getTime())) return d.toLocaleString();
+    d = new Date(n);
+  } else {
+    d = new Date(String(v));
   }
-  const d2 = new Date(String(v));
-  if (!Number.isNaN(d2.getTime())) return d2.toLocaleString();
-  return String(v);
+  if (Number.isNaN(d.getTime())) return String(v);
+  const mo = d.getMonth() + 1;
+  const dy = d.getDate();
+  const t = d
+    .toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+    .replace(' AM', 'a').replace(' PM', 'p');
+  return `${mo}/${dy} ${t}`;
 }
 
 // Mirror Card.jsx's describeEditDate freshness tiers for a generic
@@ -90,6 +96,31 @@ const v = (m, k) => {
   return s.length ? s : null;
 };
 
+// Returns inline styles for the MCC status pill based on the status value.
+function mccStatusStyle(status) {
+  if (!status) return null;
+  const s = status.toLowerCase();
+  if (s.includes('open') || s.includes('active'))
+    return { background: '#dcfce7', color: '#166534', borderColor: '#86efac' };
+  if (s.includes('closed') || s.includes('complete') || s.includes('resolved'))
+    return { background: '#f1f5f9', color: '#475569', borderColor: '#cbd5e1' };
+  if (s.includes('hold') || s.includes('pending'))
+    return { background: '#fffbeb', color: '#92400e', borderColor: '#fde68a' };
+  if (s.includes('progress') || s.includes('assigned'))
+    return { background: '#dbeafe', color: '#1e40af', borderColor: '#93c5fd' };
+  return { background: '#f1f5f9', color: '#475569', borderColor: '#cbd5e1' };
+}
+
+// Returns the CSS class for a priority chip.
+// Urgent = red, Priority = amber, Routine (or anything else) = default gray.
+function priorityChipClass(priority) {
+  if (!priority) return 'card-chip';
+  const p = priority.toLowerCase();
+  if (p === 'urgent')   return 'card-chip card-chip--urgent';
+  if (p === 'priority') return 'card-chip card-chip--priority';
+  return 'card-chip';
+}
+
 function MccCard({ m, lastFollowupTs, needsFollowup = false, deploymentCount = 0, onFilter, onShowDetail }) {
   const f = MCC_SERVICE.fields;
   const mccNum   = v(m, f.mccNumber);
@@ -98,8 +129,8 @@ function MccCard({ m, lastFollowupTs, needsFollowup = false, deploymentCount = 0
   const priority = v(m, f.priority);
   const status   = v(m, f.status);
   const county   = v(m, f.county);
-  const entry    = fmtDateTime(m[f.entryDate] || m[f.mccCreated] || m[f.creationDate]);
-  const edited   = fmtDateTime(m[f.editDate]);
+  const entry    = fmtShort(m[f.entryDate] || m[f.mccCreated] || m[f.creationDate]);
+  const edited   = fmtShort(m[f.editDate]);
   const lastFu   = describeRecent(lastFollowupTs);
 
   // Register the card as a drop target for inventory drags. The
@@ -173,7 +204,17 @@ function MccCard({ m, lastFollowupTs, needsFollowup = false, deploymentCount = 0
               Last followup {lastFu.text}
             </div>
           )}
-          {status && <div className="card-county muted small">{status}</div>}
+          {status && (() => {
+            const st = mccStatusStyle(status);
+            return (
+              <span
+                className="mcc-status-pill"
+                style={st ? { background: st.background, color: st.color, borderColor: st.borderColor } : undefined}
+              >
+                {status}
+              </span>
+            );
+          })()}
         </div>
         <div className="card-right">
           {type && <div className="card-qty">{type}</div>}
@@ -182,7 +223,7 @@ function MccCard({ m, lastFollowupTs, needsFollowup = false, deploymentCount = 0
       </div>
       {(priority || entry || edited) && (
         <div className="card-footer">
-          {priority && <span className="card-chip">Priority · {priority}</span>}
+          {priority && <span className={priorityChipClass(priority)}>Priority · {priority}</span>}
           {entry  && <span className="card-chip">Entered {entry}</span>}
           {edited && <span className="card-chip">Updated {edited}</span>}
         </div>
