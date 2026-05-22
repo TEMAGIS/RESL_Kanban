@@ -245,52 +245,46 @@ export default function MccDetailModal({ mcc, deployments = [], readOnly = false
           />
         ) : (
           <div className="modal-body">
-            <Section title="Request" rows={[
-              { label: 'MCC #',     value: mcc[f.mccNumber] },
-              { label: 'Subject',   value: mcc[f.subject] },
-              { label: 'Type',      value: mcc[f.type] },
-              { label: 'Priority',  value: mcc[f.priority] },
-              { label: 'Status',    value: mcc[f.status] },
-              { label: 'Lifeline',  value: mcc[f.lifeline] },
-              { label: 'Feeding',   value: mcc[f.feeding] },
+            <Section title="Requestor Information" rows={[
+              { label: 'Originator',      value: mcc[f.originator] },
+              { label: 'Position',        value: mcc[f.mccPosition] },
+              { label: 'Phone',           value: mcc[f.pocPhone] },
+              { label: 'When Originated', value: fmtDateTime(mcc[f.mccCreated] || mcc[f.entryDate]) },
+              { label: 'Last Updated',    value: fmtDateTime(mcc[f.editDate]) },
+              { label: 'County',          value: mcc[f.county] },
+              { label: 'Subject',         value: mcc[f.subject] },
+              { label: 'Region',          value: mcc[f.region] },
+              { label: 'Description',     value: mcc[f.description], multi: true },
+              { label: 'FEMA Lifeline',   value: mcc[f.lifeline] },
+              { label: 'Feeding',         value: mcc[f.feeding] },
             ]} />
 
-            <Section title="Description" rows={[
-              { label: 'Description', value: mcc[f.description], multi: true },
+            <Section title="Point of Contact Information" rows={[
+              { label: 'POC Name',    value: mcc[f.pocName] },
+              { label: 'POC Title',   value: mcc[f.pocTitle] },
+              { label: 'POC Phone #', value: mcc[f.pocPhone] },
+              { label: 'Subscriber',  value: mcc[f.subscriberName] },
             ]} />
 
-            <Section title="Originator" rows={[
-              { label: 'Originator',  value: mcc[f.originator] },
-              { label: 'Position',    value: mcc[f.mccPosition] },
-              { label: 'MCC created', value: fmtDateTime(mcc[f.mccCreated]) },
-              { label: 'Entry date',  value: fmtDateTime(mcc[f.entryDate]) },
+            <Section title="Delivery Details" rows={[
+              { label: 'Delivery Location Name', value: mcc[f.deliveryLocation] },
+              { label: 'Delivery Address',       value: mcc[f.address] },
+              { label: 'Delivery Date',          value: fmtDate(mcc[f.deliveryDate]) },
+              { label: 'Delivery Time',          value: mcc[f.deliveryTime] },
+              { label: 'Delivery Notes',         value: mcc[f.deliveryNotes], multi: true },
             ]} />
 
-            <Section title="Point of contact" rows={[
-              { label: 'Name',       value: mcc[f.pocName] },
-              { label: 'Title',      value: mcc[f.pocTitle] },
-              { label: 'Phone',      value: mcc[f.pocPhone] },
-              { label: 'Subscriber', value: mcc[f.subscriberName] },
-            ]} />
-
-            <Section title="Delivery" rows={[
-              { label: 'Delivery date',     value: fmtDate(mcc[f.deliveryDate]) },
-              { label: 'Delivery time',     value: fmtDateTime(mcc[f.deliveryTime]) },
-              { label: 'Delivery location', value: mcc[f.deliveryLocation] },
-              { label: 'Delivery notes',    value: mcc[f.deliveryNotes], multi: true },
-              { label: 'Assigned to',       value: assignToDisplay(mcc[f.assignTo]) },
-            ]} />
-
-            <Section title="Location" rows={[
-              { label: 'Address', value: mcc[f.address] },
-              { label: 'County',  value: mcc[f.county] },
-              { label: 'Region',  value: mcc[f.region] },
+            <Section title="Mission Coordination Center" rows={[
+              { label: 'From',     value: mcc[f.originator] },
+              { label: 'To',       value: assignToDisplay(mcc[f.assignTo]) },
+              { label: 'Type',     value: mcc[f.type] },
+              { label: 'Priority', value: mcc[f.priority] },
+              { label: 'Status',   value: mcc[f.status] },
             ]} />
 
             <Section title="Audit" rows={[
               { label: 'Created', value: fmtDateTime(mcc[f.creationDate]) },
               { label: 'Creator', value: mcc[f.creator] },
-              { label: 'Edited',  value: fmtDateTime(mcc[f.editDate]) },
               { label: 'Editor',  value: mcc[f.editor] },
             ]} />
           </div>
