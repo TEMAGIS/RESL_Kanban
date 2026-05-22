@@ -46,7 +46,7 @@ function describeRecent(ms) {
 
 // MCC column — source of deployments. Not a drag-drop target. Cards
 // render basic MCC info and open a read-only popup when clicked.
-export default function MccColumn({ label, accent, mccs, latestFollowupByMcc, mccNeedsFollowupSet, onFilter, onShowDetail }) {
+export default function MccColumn({ label, accent, mccs, latestFollowupByMcc, mccNeedsFollowupSet, deploymentCountByMcc, onFilter, onShowDetail }) {
   return (
     <div className="column is-static" style={{ '--column-accent': accent }}>
       <header className="column-header">
@@ -63,12 +63,14 @@ export default function MccColumn({ label, accent, mccs, latestFollowupByMcc, mc
             const key = num != null ? String(num).trim() : '';
             const lastFu = key && latestFollowupByMcc ? latestFollowupByMcc.get(key) : null;
             const needsFollowup = key && mccNeedsFollowupSet ? mccNeedsFollowupSet.has(key) : false;
+            const depCount = key && deploymentCountByMcc ? (deploymentCountByMcc.get(key) ?? 0) : 0;
             return (
               <MccCard
                 key={m[MCC_SERVICE.fields.objectId] ?? m[MCC_SERVICE.fields.globalId]}
                 m={m}
                 lastFollowupTs={lastFu}
                 needsFollowup={needsFollowup}
+                deploymentCount={depCount}
                 onFilter={() => onFilter && onFilter(m)}
                 onShowDetail={() => onShowDetail && onShowDetail(m)}
               />
@@ -88,7 +90,7 @@ const v = (m, k) => {
   return s.length ? s : null;
 };
 
-function MccCard({ m, lastFollowupTs, needsFollowup = false, onFilter, onShowDetail }) {
+function MccCard({ m, lastFollowupTs, needsFollowup = false, deploymentCount = 0, onFilter, onShowDetail }) {
   const f = MCC_SERVICE.fields;
   const mccNum   = v(m, f.mccNumber);
   const subject  = v(m, f.subject);
@@ -154,6 +156,9 @@ function MccCard({ m, lastFollowupTs, needsFollowup = false, onFilter, onShowDet
         <div className="card-left">
           <div className="card-title-row">
             <div className="card-title">{mccNum ? `MCC #${mccNum}` : '—'}</div>
+            <span className={`mcc-dep-badge${deploymentCount === 0 ? ' is-zero' : ''}`}>
+              {deploymentCount}
+            </span>
             {needsFollowup && (
               <div className="followup-needed small">
                 <span className="followup-dot" aria-hidden="true" />

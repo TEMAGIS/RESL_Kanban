@@ -416,6 +416,19 @@ export default function Board({ onSignOut }) {
   // currently-selected mission, so this naturally scopes to the visible
   // board. When no mission is selected both maps are empty and nothing
   // triggers — consistent with the rest of the board's behavior.
+  // Count deployments per MCC request number (keyed by request_number_rpt).
+  // Uses all mission resources (not just filtered) so the badge always
+  // reflects the full picture regardless of active filter UI state.
+  const deploymentCountByMcc = useMemo(() => {
+    const map = new Map();
+    for (const r of resources) {
+      const key = String(r[FIELDS.requestNumber] ?? '').trim();
+      if (!key) continue;
+      map.set(key, (map.get(key) ?? 0) + 1);
+    }
+    return map;
+  }, [resources]);
+
   const { needsFollowupByOid, mccNeedsFollowupSet, urgencyScoreByOid, mccMaxUrgencyScore } = useMemo(() => {
     const byOid       = new Map();
     const mccSet      = new Set();
@@ -908,6 +921,7 @@ export default function Board({ onSignOut }) {
                       mccs={sortedFilteredMccs}
                       latestFollowupByMcc={latestFollowupByMcc}
                       mccNeedsFollowupSet={mccNeedsFollowupSet}
+                      deploymentCountByMcc={deploymentCountByMcc}
                       onFilter={() => {}}
                       onShowDetail={setMccDetailRow}
                     />
