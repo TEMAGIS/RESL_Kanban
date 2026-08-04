@@ -790,6 +790,39 @@ export async function duplicateDeployment(r) {
   return result;
 }
 
+// Update arbitrary attributes on a single MCC record. Same pattern as
+// updateAttributes() but targets MCC_SERVICE.url. No history log —
+// the MCC layer is owned by WebEOC/the county; we record the change
+// in the optimistic UI but don't try to audit it on our history layer.
+export async function updateMccAttributes(objectId, partial) {
+  await ensureFreshToken();
+  const TOKEN = getToken();
+
+  const body = new URLSearchParams({
+    f:       'json',
+    token:   TOKEN.accessToken,
+    updates: JSON.stringify([{
+      attributes: {
+        [MCC_SERVICE.fields.objectId]: objectId,
+        ...partial,
+      },
+    }]),
+  });
+  const data = await arcgisFetch(`${MCC_SERVICE.url}/applyEdits`, {
+    method:  'POST',
+    body,
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  });
+  const result = (data.updateResults && data.updateResults[0]) || null;
+  if (!result || !result.success) {
+    const msg = result && result.error
+      ? `${result.error.code}: ${result.error.description}`
+      : 'MCC update failed';
+    throw new Error(msg);
+  }
+  return result;
+}
+
 // Add a new feature to the followups service. `attributes` is an
 // object keyed by AGOL field names. Returns the addResults entry on
 // success; throws on failure.

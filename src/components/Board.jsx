@@ -10,7 +10,7 @@ import {
   closestCenter,
 } from '@dnd-kit/core';
 import { COLUMNS, STATUS_COLUMNS, FIELDS, CONFIG, statusToColumnId, MCC_SERVICE, FOLLOWUP_SERVICE, INVENTORY_SERVICE } from '../config.js';
-import { fetchAllResources, fetchAllMccs, fetchAllInventory, fetchLayerMeta, updateAttributes, createDeploymentFromInventory, updateInventoryMobilizationStatus, fetchMccsForMission, fetchFollowupsForMission, duplicateDeployment } from '../service.js';
+import { fetchAllResources, fetchAllMccs, fetchAllInventory, fetchLayerMeta, updateAttributes, createDeploymentFromInventory, updateInventoryMobilizationStatus, fetchMccsForMission, fetchFollowupsForMission, duplicateDeployment, updateMccAttributes } from '../service.js';
 import Column from './Column.jsx';
 import Card from './Card.jsx';
 import MccColumn from './MccColumn.jsx';
@@ -437,11 +437,6 @@ export default function Board({ onSignOut }) {
     const now         = Date.now();
     const SKIP_STATUSES = new Set(['Demobilized', 'Canceled', 'On Hold']);
     for (const r of resources) {
-      // Skip resources that are explicitly opted out of RESL tracking —
-      // they don't participate in the followup cadence at all.
-      const trackingVal = String(r[FIELDS.tracking] || '').toLowerCase();
-      if (trackingVal.includes('not tracked')) continue;
-
       const freq = Number(r[FIELDS.followupFrequency]);
       if (!Number.isFinite(freq) || freq <= 0) continue;
       const status = String(r[FIELDS.status] || '').trim();
@@ -990,6 +985,33 @@ export default function Board({ onSignOut }) {
         onShowDeployment={(deployRow) => {
           setMccDetailRow(null);
           setDetailRow(deployRow);
+        }}
+        onMccUpdate={readOnly ? undefined : async (objectId, partial) => {
+          // Snapshot before-values for rollback.
+          const before = mccs.find((m) => m[MCC_SERVICE.fields.objectId] === objectId);
+          const rollback = {};
+          for (const k of Object.keys(partial)) {
+            rollback[k] = before ? before[k] : undefined;
+          }
+          // Optimistic update — reflects immediately in the modal and card.
+          setMccs((prev) => prev.map((m) =>
+            m[MCC_SERVICE.fields.objectId] === objectId ? { ...m, ...partial } : m,
+          ));
+          setMccDetailRow((prev) =>
+            prev && prev[MCC_SERVICE.fields.objectId] === objectId ? { ...prev, ...partial } : prev,
+          );
+          try {
+            await updateMccAttributes(objectId, partial);
+          } catch (err) {
+            // Roll back both the list and the open modal on failure.
+            setMccs((prev) => prev.map((m) =>
+              m[MCC_SERVICE.fields.objectId] === objectId ? { ...m, ...rollback } : m,
+            ));
+            setMccDetailRow((prev) =>
+              prev && prev[MCC_SERVICE.fields.objectId] === objectId ? { ...prev, ...rollback } : prev,
+            );
+            throw err;
+          }
         }}
       />
 

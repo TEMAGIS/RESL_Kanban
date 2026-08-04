@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { MCC_SERVICE, FIELDS, buildResourceSurveyUrl } from '../config.js';
+import { MCC_SERVICE, FIELDS, TRACKING_OPTIONS, buildResourceSurveyUrl } from '../config.js';
 import { fetchFollowups } from '../service.js';
 import { FollowupsTabBody } from './DetailModal.jsx';
 
@@ -59,19 +59,90 @@ function assignToDisplay(v) {
   return s;
 }
 
+// Editable select for MCC fields. Saves on change; shows saving / error
+// inline. When onUpdate is absent (read-only mode) renders plain text.
+function EditableSelectRow({ label, value, options, field, objectId, onUpdate }) {
+  const [saving, setSaving] = useState(false);
+  const [err,    setErr]    = useState('');
+
+  if (!onUpdate) {
+    if (!has(value)) return null;
+    return (
+      <div className="modal-row">
+        <dt>{label}</dt>
+        <dd>{String(value)}</dd>
+      </div>
+    );
+  }
+
+  const handleChange = async (e) => {
+    const newVal = e.target.value || null;
+    setErr('');
+    setSaving(true);
+    try {
+      await onUpdate(objectId, { [field]: newVal });
+    } catch (ex) {
+      setErr(ex.message || 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const display = value == null ? '' : String(value);
+  const opts = display && !options.includes(display)
+    ? [display, ...options]
+    : options;
+
+  return (
+    <div className="modal-row editable">
+      <dt>{label}</dt>
+      <dd>
+        <select
+          className="modal-edit-select"
+          value={display}
+          onChange={handleChange}
+          disabled={saving}
+        >
+          <option value="">{display ? '(clear)' : ''}</option>
+          {opts.map((o) => <option key={o} value={o}>{o}</option>)}
+        </select>
+        {saving && <span className="muted small modal-edit-status">Saving…</span>}
+        {!saving && err && <span className="error-text small modal-edit-status">{err}</span>}
+      </dd>
+    </div>
+  );
+}
+
 function Section({ title, rows }) {
-  const visible = rows.filter((r) => has(r.value));
+  // Editable rows always show (so users can set a value from blank);
+  // static rows are hidden when empty.
+  const visible = rows.filter((r) => r.editable || has(r.value));
   if (visible.length === 0) return null;
   return (
     <section className="modal-section">
       <h3>{title}</h3>
       <dl>
-        {visible.map((r) => (
-          <div className={`modal-row${r.multi ? ' multi' : ''}`} key={r.label}>
-            <dt>{r.label}</dt>
-            <dd>{String(r.value)}</dd>
-          </div>
-        ))}
+        {visible.map((r) => {
+          if (r.editable) {
+            return (
+              <EditableSelectRow
+                key={r.label}
+                label={r.label}
+                value={r.value}
+                options={r.options}
+                field={r.field}
+                objectId={r.objectId}
+                onUpdate={r.onUpdate}
+              />
+            );
+          }
+          return (
+            <div className={`modal-row${r.multi ? ' multi' : ''}`} key={r.label}>
+              <dt>{r.label}</dt>
+              <dd>{String(r.value)}</dd>
+            </div>
+          );
+        })}
       </dl>
     </section>
   );
@@ -95,7 +166,7 @@ function matchingDeployments(mcc, deployments) {
   );
 }
 
-export default function MccDetailModal({ mcc, deployments = [], readOnly = false, followupCount = 0, onClose, onShowDeployment }) {
+export default function MccDetailModal({ mcc, deployments = [], readOnly = false, followupCount = 0, onClose, onShowDeployment, onMccUpdate }) {
   const [activeTab, setActiveTab] = useState('details'); // 'details' | 'deployments' | 'followups'
 
   // Followups tab state (mirrors DetailModal.jsx's followups handling).
@@ -293,12 +364,20 @@ export default function MccDetailModal({ mcc, deployments = [], readOnly = false
             ]} />
 
             <Section title="Mission Coordination Center" rows={[
-              { label: 'From',     value: mcc[f.mccPosition] },
+              { label: 'From',       value: mcc[f.mccPosition] },
               { label: 'To',         value: assignToDisplay(mcc[f.assignTo]) },
               { label: 'Assigned 2', value: assignToDisplay(mcc[f.assignTo2]) },
               { label: 'Assigned 3', value: assignToDisplay(mcc[f.assignTo3]) },
               { label: 'Assigned 4', value: assignToDisplay(mcc[f.assignTo4]) },
-              { label: 'Type',     value: mcc[f.type] },
+              {
+                label:    'Type',
+                value:    mcc[f.type],
+                editable: true,
+                options:  TRACKING_OPTIONS,
+                field:    f.type,
+                objectId: mcc[f.objectId],
+                onUpdate: onMccUpdate,
+              },
               { label: 'Priority', value: mcc[f.priority] },
               { label: 'Status',   value: mcc[f.status] },
             ]} />

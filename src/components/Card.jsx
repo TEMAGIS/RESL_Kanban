@@ -241,12 +241,6 @@ function CardView({ r, pending, needsFollowup = false, lastFollowupTs = null, st
   const statusBg  = status ? statusAccent(status) : null;
   const statusFg  = status ? pickTextColor(statusBg) : null;
 
-  // "Not Tracked by RESL" cards get a neutral monochrome style — no
-  // freshness colours, no followup indicators. Anything else (including
-  // blank tracking field) is treated as tracked.
-  const isUntracked = String(r[FIELDS.tracking] || '').toLowerCase().includes('not tracked');
-  const effectiveTier     = isUntracked ? null : edit.tier;
-  const effectiveFollowup = isUntracked ? false : needsFollowup;
 
   // Click handler that explicitly does NOT propagate to the dnd-kit
   // listeners on the card root — otherwise the click might be swallowed
@@ -263,7 +257,7 @@ function CardView({ r, pending, needsFollowup = false, lastFollowupTs = null, st
     <div
       ref={forwardRef}
       style={style}
-      className={`card${dragging ? ' is-dragging' : ''}${pending ? ' is-pending' : ''}${isUntracked ? ' is-untracked' : effectiveTier ? ` is-${effectiveTier === 'stale' ? 'stale' : `fresh-${effectiveTier}`}` : ''}${effectiveFollowup ? ' needs-followup' : ''}`}
+      className={`card${dragging ? ' is-dragging' : ''}${pending ? ' is-pending' : ''}${edit.tier ? ` is-${edit.tier === 'stale' ? 'stale' : `fresh-${edit.tier}`}` : ''}${needsFollowup ? ' needs-followup' : ''}`}
       {...handleProps}
     >
       {onShowDetail && !dragging && (
@@ -284,7 +278,7 @@ function CardView({ r, pending, needsFollowup = false, lastFollowupTs = null, st
         <div className="card-left">
           <div className="card-title-row">
             <div className="card-title">{reqNum ? `#${reqNum}` : '—'}</div>
-            {effectiveFollowup && !dragging && (
+            {needsFollowup && !dragging && (
               <div className="followup-needed small">
                 <span className="followup-dot" aria-hidden="true" />
                 Followup needed
@@ -293,9 +287,9 @@ function CardView({ r, pending, needsFollowup = false, lastFollowupTs = null, st
           </div>
           {county && <div className="card-county">{county} County</div>}
           {edit.text && (
-            <div className={`card-updated small${effectiveTier ? ` is-${effectiveTier === 'stale' ? 'stale' : `fresh-${effectiveTier}`}` : ' muted'}`}>
-              {effectiveTier === 'hour'  && <span className="fresh-dot" aria-hidden="true" />}
-              {effectiveTier === 'stale' && <span className="stale-dot" aria-hidden="true" />}
+            <div className={`card-updated small${edit.tier ? ` is-${edit.tier === 'stale' ? 'stale' : `fresh-${edit.tier}`}` : ' muted'}`}>
+              {edit.tier === 'hour'  && <span className="fresh-dot" aria-hidden="true" />}
+              {edit.tier === 'stale' && <span className="stale-dot" aria-hidden="true" />}
               Updated {edit.text}
             </div>
           )}
@@ -321,7 +315,7 @@ function CardView({ r, pending, needsFollowup = false, lastFollowupTs = null, st
       </div>
       <div className="card-footer">
         {esf     && <span className="card-chip">ESF · {esf}</span>}
-        {!dragging && !isUntracked && (() => {
+        {!dragging && (() => {
           const fuText = describeFollowup(lastFollowupTs);
           return fuText
             ? <span className="card-chip card-followup-chip">Followup · {fuText}</span>
