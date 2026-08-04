@@ -129,8 +129,9 @@ function MccCard({ m, lastFollowupTs, needsFollowup = false, deploymentCount = 0
   const assignTo = (rawAssignTo && !/^\(?\s*select\s*\)?$/i.test(rawAssignTo))
     ? rawAssignTo
     : null;
-  const subject  = v(m, f.subject);
-  const type     = v(m, f.type);
+  const subject     = v(m, f.subject);
+  const type        = v(m, f.type);
+  const isUntracked = type != null && String(type).toLowerCase().includes('not tracked');
   const priority = v(m, f.priority);
   const status   = v(m, f.status);
   const county   = v(m, f.county);
@@ -169,7 +170,7 @@ function MccCard({ m, lastFollowupTs, needsFollowup = false, deploymentCount = 0
   return (
     <div
       ref={setNodeRef}
-      className={`card mcc-card${lastFu.tier ? ` is-fresh-${lastFu.tier}` : ''}${needsFollowup ? ' needs-followup' : ''}${dropClass}`}
+      className={`card mcc-card${isUntracked ? ' is-mcc-untracked' : lastFu.tier ? ` is-fresh-${lastFu.tier}` : ''}${(!isUntracked && needsFollowup) ? ' needs-followup' : ''}${dropClass}`}
       role="button"
       tabIndex={0}
       onClick={onFilter}
@@ -195,7 +196,7 @@ function MccCard({ m, lastFollowupTs, needsFollowup = false, deploymentCount = 0
             <span className={`mcc-dep-badge${deploymentCount === 0 ? ' is-zero' : ''}`}>
               {deploymentCount}
             </span>
-            {needsFollowup && (
+            {!isUntracked && needsFollowup && (
               <div className="followup-needed small">
                 <span className="followup-dot" aria-hidden="true" />
                 Followup needed
@@ -205,8 +206,8 @@ function MccCard({ m, lastFollowupTs, needsFollowup = false, deploymentCount = 0
           {assignTo && <div className="card-assign-to small">{assignTo}</div>}
           {county && <div className="card-county">{county} County</div>}
           {lastFu.text && (
-            <div className={`card-updated small${lastFu.tier ? ` is-fresh-${lastFu.tier}` : ' muted'}`}>
-              {lastFu.tier === 'hour' && <span className="fresh-dot" aria-hidden="true" />}
+            <div className={`card-updated small${!isUntracked && lastFu.tier ? ` is-fresh-${lastFu.tier}` : ' muted'}`}>
+              {!isUntracked && lastFu.tier === 'hour' && <span className="fresh-dot" aria-hidden="true" />}
               Last followup {lastFu.text}
             </div>
           )}

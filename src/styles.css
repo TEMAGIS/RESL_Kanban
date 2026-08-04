@@ -797,6 +797,24 @@ button { font-family: inherit; cursor: pointer; }
   margin-top: 1px;
 }
 
+/* ─── MCC — Not Tracked by RESL ─────────────────────────────────────
+   Charcoal / greyed-out appearance. Overrides freshness highlights and
+   followup pulse so these cards recede visually behind active ones. */
+.card.is-mcc-untracked {
+  background: #f1f5f9;
+  border-left-color: #64748b;
+  opacity: 0.82;
+}
+.card.is-mcc-untracked .card-title,
+.card.is-mcc-untracked .card-county,
+.card.is-mcc-untracked .card-assign-to,
+.card.is-mcc-untracked .card-name,
+.card.is-mcc-untracked .card-qty   { color: #475569; }
+.card.is-mcc-untracked .card-updated,
+.card.is-mcc-untracked .muted      { color: #94a3b8 !important; }
+.card.is-mcc-untracked .mcc-status-pill { opacity: 0.65; }
+.card.is-mcc-untracked .card-chip  { background: #e2e8f0; color: #64748b; border-color: #cbd5e1; }
+
 .followup-dot {
   display: inline-block;
   width: 7px; height: 7px;
