@@ -686,7 +686,49 @@ function EditableAddressRow({ label, value, field, geocodedField, objectId, onUp
   );
 }
 
-export default function DetailModal({ r, followupCount = 0, onClose, onUpdate }) {
+// Button that duplicates a deployment record. Has its own saving /
+// done / error state so it can show inline feedback without needing to
+// wire through the whole Board state machine.
+function DuplicateButton({ r, onDuplicate }) {
+  const [status, setStatus] = useState('idle'); // 'idle' | 'saving' | 'done' | 'error'
+  const [err,    setErr]    = useState('');
+  const timerRef            = useRef(null);
+
+  const handleClick = async () => {
+    if (status === 'saving') return;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setErr('');
+    setStatus('saving');
+    try {
+      await onDuplicate(r);
+      setStatus('done');
+      timerRef.current = setTimeout(() => setStatus('idle'), 2500);
+    } catch (ex) {
+      setErr(ex.message || 'Duplicate failed');
+      setStatus('error');
+      timerRef.current = setTimeout(() => setStatus('idle'), 4000);
+    }
+  };
+
+  return (
+    <div className="dup-btn-wrap">
+      <button
+        type="button"
+        className={`btn btn-sm${status === 'done' ? ' btn-success' : ' btn-ghost'}`}
+        onClick={handleClick}
+        disabled={status === 'saving'}
+        title="Create a new deployment with the same field values"
+      >
+        {status === 'saving' ? 'Duplicating…' : status === 'done' ? '✓ Duplicated' : 'Duplicate'}
+      </button>
+      {status === 'error' && err && (
+        <span className="error-text small modal-edit-status">{err}</span>
+      )}
+    </div>
+  );
+}
+
+export default function DetailModal({ r, followupCount = 0, onClose, onUpdate, onDuplicate }) {
   const [activeTab, setActiveTab] = useState('resource'); // 'resource' | 'mcc' | 'followups' | 'history'
 
   // MCC tab state (single record).
@@ -829,7 +871,10 @@ export default function DetailModal({ r, followupCount = 0, onClose, onUpdate })
             </div>
             <h2>{title}</h2>
           </div>
-          <button className="modal-close" onClick={onClose} aria-label="Close">×</button>
+          <div className="modal-header-actions">
+            {onDuplicate && <DuplicateButton r={r} onDuplicate={onDuplicate} />}
+            <button className="modal-close" onClick={onClose} aria-label="Close">×</button>
+          </div>
         </header>
 
         <div className="modal-tabs" role="tablist">

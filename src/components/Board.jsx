@@ -10,7 +10,7 @@ import {
   closestCenter,
 } from '@dnd-kit/core';
 import { COLUMNS, STATUS_COLUMNS, FIELDS, CONFIG, statusToColumnId, MCC_SERVICE, FOLLOWUP_SERVICE, INVENTORY_SERVICE } from '../config.js';
-import { fetchAllResources, fetchAllMccs, fetchAllInventory, fetchLayerMeta, updateAttributes, createDeploymentFromInventory, updateInventoryMobilizationStatus, fetchMccsForMission, fetchFollowupsForMission } from '../service.js';
+import { fetchAllResources, fetchAllMccs, fetchAllInventory, fetchLayerMeta, updateAttributes, createDeploymentFromInventory, updateInventoryMobilizationStatus, fetchMccsForMission, fetchFollowupsForMission, duplicateDeployment } from '../service.js';
 import Column from './Column.jsx';
 import Card from './Card.jsx';
 import MccColumn from './MccColumn.jsx';
@@ -996,6 +996,11 @@ export default function Board({ onSignOut }) {
             : 0
         }
         onClose={() => setDetailRow(null)}
+        onDuplicate={readOnly ? undefined : async (row) => {
+          await duplicateDeployment(row);
+          // Refresh so the new card appears on the board immediately.
+          await refresh();
+        }}
         onUpdate={readOnly ? undefined : async (objectId, partial, geometry) => {
           // Snapshot the old values (including EditDate) for rollback
           const before = resources.find((row) => row[FIELDS.objectId] === objectId);

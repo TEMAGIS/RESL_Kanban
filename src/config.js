@@ -402,21 +402,17 @@ export const MCC_SERVICE = {
 //  the domain values on the feature service exactly.
 // ============================================================================
 export const ESF_LIST = [
-  'ESF 1 - Transportation',
-  'ESF 2 - Communications',
-  'ESF 3 - Public Works and Engineering',
-  'ESF 4 - Firefighting',
-  'ESF 5 - Information and Planning',
-  'ESF 6 - Mass Care',
-  'ESF 7 - Logistics',
-  'ESF 8 - Public Health and Medical',
-  'ESF 9 - Search and Rescue',
-  'ESF 10 - Hazardous Materials',
-  'ESF 11 - Agriculture and Natural Resources',
-  'ESF 12 - Energy',
-  'ESF 13 - Public Safety and Security',
-  'ESF 14 - Long-term Community Recovery',
-  'ESF 15 - External Affairs',
+  'ESF 1 – Transportation',
+  'ESF 2 – Communications',
+  'ESF 4 – Forestry / Fire',
+  'ESF 6 – Human Services',
+  'ESF 7 – Resource Support',
+  'ESF 8 – Health',
+  'ESF 9 – Search & Rescue',
+  'ESF 11 – Food',
+  'ESF 13 – Law Enforcement / Military',
+  'ESF 14 – VOAD',
+  'ESF 16 – Animal Care',
 ];
 
 export const MISSION_TYPES = [

@@ -736,6 +736,60 @@ export async function fetchMccsForMission(missionId) {
     });
 }
 
+// Duplicate an existing deployment record. Copies all non-system fields
+// into a new addFeatures call. AGOL assigns fresh ObjectID / GlobalID /
+// CreationDate / EditDate on insert, so we strip those before sending.
+// Returns the addResults entry (includes the new objectId) on success.
+export async function duplicateDeployment(r) {
+  if (!r) throw new Error('No record to duplicate');
+  await ensureFreshToken();
+  const TOKEN = getToken();
+
+  const SYSTEM_FIELDS = new Set([
+    FIELDS.objectId, FIELDS.globalId,
+    FIELDS.creationDate, FIELDS.creator,
+    FIELDS.editDate,     FIELDS.editor,
+    // Case variants AGOL uses on different services.
+    'objectid', 'OBJECTID', 'globalid', 'GlobalID', 'GLOBALID',
+    'CreationDate', 'Creator', 'EditDate', 'Editor',
+  ]);
+
+  const attributes = {};
+  for (const [k, v] of Object.entries(r)) {
+    if (SYSTEM_FIELDS.has(k)) continue;
+    attributes[k] = v;
+  }
+
+  const body = new URLSearchParams({
+    f:        'json',
+    token:    TOKEN.accessToken,
+    features: JSON.stringify([{ attributes }]),
+  });
+  const data = await arcgisFetch(`${CONFIG.serviceUrl}/addFeatures`, {
+    method:  'POST',
+    body,
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  });
+  const result = (data.addResults && data.addResults[0]) || null;
+  if (!result || !result.success) {
+    const msg = result && result.error
+      ? `${result.error.code}: ${result.error.description}`
+      : 'Duplicate failed';
+    throw new Error(msg);
+  }
+
+  // Fire-and-forget history entry so the new record shows up in the
+  // audit log as a 'create' action with the duplicated field values.
+  logHistory({
+    before:  null,
+    after:   { ...attributes, [FIELDS.objectId]: result.objectId },
+    action:  'create',
+    changed: Object.keys(attributes),
+  });
+
+  return result;
+}
+
 // Add a new feature to the followups service. `attributes` is an
 // object keyed by AGOL field names. Returns the addResults entry on
 // success; throws on failure.
