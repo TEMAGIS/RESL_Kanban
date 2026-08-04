@@ -181,6 +181,9 @@ export const FIELDS = {
 
   // -- Status (Kanban writes here) ---------------------------------------
   status:            'item_status',
+
+  // -- RESL Tracking (Tracked by RESL / Not Tracked by RESL) -----------
+  tracking:          'tracking',
 };
 
 // ============================================================================
@@ -234,8 +237,9 @@ export const FIELD_LABELS = {
   mission_type:            'Mission type',
   mission_status_rpt:      'Mission status',
   request_number_rpt:      'Request number',
-  // Followup
+  // Followup & tracking
   followup_frequency:      'Followup frequency (hrs)',
+  tracking:                'RESL Tracking',
   // Notes
   note_rpt:                'Note',
   resl_note:               'RESL note',
@@ -413,6 +417,11 @@ export const ESF_LIST = [
   'ESF 13 – Law Enforcement / Military',
   'ESF 14 – VOAD',
   'ESF 16 – Animal Care',
+];
+
+export const TRACKING_OPTIONS = [
+  'Tracked by RESL',
+  'Not Tracked by RESL',
 ];
 
 export const MISSION_TYPES = [

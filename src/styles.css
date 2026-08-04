@@ -797,6 +797,18 @@ button { font-family: inherit; cursor: pointer; }
   margin-top: 1px;
 }
 
+/* ─── Not Tracked by RESL ────────────────────────────────────────────
+   Neutral monochrome treatment — no blue freshness highlights, no amber
+   stale warning, no red followup pulse. A dark left border provides
+   visual differentiation without drawing urgency attention. */
+.card.is-untracked {
+  background: #f9fafb;
+  border-left-color: #374151;
+  opacity: 0.88;
+}
+.card.is-untracked .card-title { color: #374151; }
+.card.is-untracked .card-updated { color: #6b7280 !important; font-weight: 400 !important; }
+
 .followup-dot {
   display: inline-block;
   width: 7px; height: 7px;

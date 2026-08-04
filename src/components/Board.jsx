@@ -437,6 +437,11 @@ export default function Board({ onSignOut }) {
     const now         = Date.now();
     const SKIP_STATUSES = new Set(['Demobilized', 'Canceled', 'On Hold']);
     for (const r of resources) {
+      // Skip resources that are explicitly opted out of RESL tracking —
+      // they don't participate in the followup cadence at all.
+      const trackingVal = String(r[FIELDS.tracking] || '').toLowerCase();
+      if (trackingVal.includes('not tracked')) continue;
+
       const freq = Number(r[FIELDS.followupFrequency]);
       if (!Number.isFinite(freq) || freq <= 0) continue;
       const status = String(r[FIELDS.status] || '').trim();
