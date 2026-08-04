@@ -396,6 +396,29 @@ export const MCC_SERVICE = {
 //  MISSION TYPE — coded values for the editable dropdown in the detail
 //  modal. Must match the layer's coded-value-domain on `mission_type` exactly.
 // ============================================================================
+// ============================================================================
+//  ESF LIST — coded values for the Coordinating ESF dropdown (select_one
+//  esf_list on the Survey123 form, stored in `coordinator`). Must match
+//  the domain values on the feature service exactly.
+// ============================================================================
+export const ESF_LIST = [
+  'ESF 1 - Transportation',
+  'ESF 2 - Communications',
+  'ESF 3 - Public Works and Engineering',
+  'ESF 4 - Firefighting',
+  'ESF 5 - Information and Planning',
+  'ESF 6 - Mass Care',
+  'ESF 7 - Logistics',
+  'ESF 8 - Public Health and Medical',
+  'ESF 9 - Search and Rescue',
+  'ESF 10 - Hazardous Materials',
+  'ESF 11 - Agriculture and Natural Resources',
+  'ESF 12 - Energy',
+  'ESF 13 - Public Safety and Security',
+  'ESF 14 - Long-term Community Recovery',
+  'ESF 15 - External Affairs',
+];
+
 export const MISSION_TYPES = [
   'Search and Rescue',
   'Law Enforcement',

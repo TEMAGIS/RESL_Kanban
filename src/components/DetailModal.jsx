@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FIELDS, MISSION_TYPES, TEAM_KINDS, MCC_SERVICE, FOLLOWUP_SERVICE, HISTORY_SERVICE, labelFor } from '../config.js';
+import { FIELDS, ESF_LIST, MISSION_TYPES, TEAM_KINDS, MCC_SERVICE, FOLLOWUP_SERVICE, HISTORY_SERVICE, labelFor } from '../config.js';
 import { fetchMccRequest, fetchFollowups, addFollowup, fetchHistory, geocodeAddress, suggestAddresses } from '../service.js';
 import { getToken } from '../auth.js';
 
@@ -971,7 +971,15 @@ export default function DetailModal({ r, followupCount = 0, onClose, onUpdate })
             { label: 'Year',           value: r.mission_year_rpt },
             { label: 'Number',         value: r.mission_number_rpt },
             { label: 'Mission status', value: r.mission_status_rpt },
-            { label: 'Coordinating ESF', value: r.coordinator },
+            {
+              label: 'Coordinating ESF',
+              value: r[FIELDS.esf],
+              editable: true,
+              options: ESF_LIST,
+              field: FIELDS.esf,
+              objectId: r[FIELDS.objectId],
+              onUpdate,
+            },
             {
               label: 'Mission type',
               value: r[FIELDS.missionType],
