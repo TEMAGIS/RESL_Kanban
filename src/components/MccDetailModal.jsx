@@ -315,11 +315,13 @@ export default function MccDetailModal({ mcc, deployments = [], readOnly = false
             state={fuState}
             canEdit={!readOnly}
             resource={{
-              // FollowupComposer reads these two keys when building the
-              // payload — map the MCC fields onto them so the followup
-              // is tied back to this MCC + mission.
+              // FollowupComposer reads these keys when building the
+              // payload — map the MCC fields so the followup is tied
+              // back to this MCC + mission, and the WebEOC dataid is
+              // written into fk_table_421 for cross-system linking.
               request_number_rpt: mcc[f.mccNumber],
               mission_id_rpt:     mcc[f.incidentId],
+              mcc_data_id:        mcc[f.dataId],
             }}
             showComposer={showComposer}
             onOpenComposer={() => setShowComposer(true)}

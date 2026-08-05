@@ -1678,16 +1678,21 @@ function FollowupComposer({ resource, onCancel, onSubmitted }) {
     try {
       const now = Date.now();
 
+      const mccDataId = String(resource?.mcc_data_id ?? '').trim() || null;
       const attrs = {
         [f.requestNumber]:  mccNo,
         [f.mission]:        incidentId,
         [f.entryDate]:      now,
-        [f.entryDateAlt]:   now,                    
+        [f.entryDateAlt]:   now,
         [f.data]:           text.trim(),
         [f.updatedBy]:      (author.username || '').trim(),
         [f.positionId]:     (author.position || '').trim(),
         [f.updatingAgency]: (author.agency   || '').trim(),
         [f.email]:          (author.email    || '').trim(),
+        // WebEOC foreign key — links this followup back to the originating
+        // MCC record. Null when the dataid isn't available (e.g. followups
+        // logged from the deployment side without MCC context).
+        ...(mccDataId ? { [f.mccDataId]: mccDataId } : {}),
       };
       console.info('[Followup] saving attrs:', attrs);
       const result = await addFollowup(attrs);

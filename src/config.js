@@ -300,7 +300,7 @@ export const INVENTORY_SERVICE = {
 
 export const FOLLOWUP_SERVICE = {
   url: import.meta.env.VITE_FOLLOWUP_URL ||
-       'https://services1.arcgis.com/kILp9lqGUeOhnDbI/ArcGIS/rest/services/MCCFollowup_v2/FeatureServer/0',
+       'https://services1.arcgis.com/kILp9lqGUeOhnDbI/ArcGIS/rest/services/MCCFollowup_v3/FeatureServer/0',
   fields: {
     objectId:       'ObjectID',
     globalId:       'GlobalID',
@@ -314,6 +314,12 @@ export const FOLLOWUP_SERVICE = {
     email:          'updating_email',
     subscriberName: 'subscribername',
     positionId:     'positionid',
+    // WebEOC foreign keys — link the followup back to the originating
+    // MCC record for cross-system joining.
+    //   fk_table_421 (Integer) = MCC dataid from the MCC AGOL layer
+    //   fk_421       (String)  = TBD — populate once source is confirmed
+    mccDataId:      'fk_table_421',
+    mccRef:         'fk_421',
     // v1 fields removed in v2: Username, positionname, updating_phone
   },
 };
@@ -389,6 +395,10 @@ export const MCC_SERVICE = {
     creator:         'Creator',
     editDate:        'EditDate',
     editor:          'Editor',
+    // WebEOC primary key for this MCC record — written into fk_table_421
+    // on new followups so WebEOC can link them back. Verify the exact
+    // field name on the AGOL layer (common values: 'dataid', 'webeocdataid').
+    dataId:          'dataid',
   },
 };
 
