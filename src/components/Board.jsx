@@ -1022,6 +1022,16 @@ export default function Board({ onSignOut }) {
             ? (followupCountByMcc.get(String(detailRow.request_number_rpt ?? '').trim()) || 0)
             : 0
         }
+        mccDataId={(() => {
+          if (!detailRow || !mccs.length) return null;
+          const reqNum = String(detailRow.request_number_rpt ?? '').trim();
+          if (!reqNum) return null;
+          const mf = MCC_SERVICE.fields;
+          const match = mccs.find(
+            (m) => String(m[mf.mccNumber] ?? '').trim() === reqNum,
+          );
+          return match ? (match[mf.dataId] ?? null) : null;
+        })()}
         onClose={() => setDetailRow(null)}
         onDuplicate={readOnly ? undefined : async (row) => {
           await duplicateDeployment(row);

@@ -728,7 +728,7 @@ function DuplicateButton({ r, onDuplicate }) {
   );
 }
 
-export default function DetailModal({ r, followupCount = 0, onClose, onUpdate, onDuplicate }) {
+export default function DetailModal({ r, followupCount = 0, onClose, onUpdate, onDuplicate, mccDataId }) {
   const [activeTab, setActiveTab] = useState('resource'); // 'resource' | 'mcc' | 'followups' | 'history'
 
   // MCC tab state (single record).
@@ -932,7 +932,7 @@ export default function DetailModal({ r, followupCount = 0, onClose, onUpdate, o
           <FollowupsTabBody
             state={fuState}
             canEdit={!!onUpdate}
-            resource={r}
+            resource={{ ...r, mcc_data_id: mccDataId ?? null }}
             showComposer={showComposer}
             onOpenComposer={() => setShowComposer(true)}
             onCancelComposer={() => setShowComposer(false)}
