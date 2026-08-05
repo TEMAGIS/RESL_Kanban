@@ -1678,7 +1678,13 @@ function FollowupComposer({ resource, onCancel, onSubmitted }) {
     try {
       const now = Date.now();
 
-      const mccDataId = String(resource?.mcc_data_id ?? '').trim() || null;
+      // fk_table_421 is an Integer field — parse to a number, not a string.
+      const rawDataId  = resource?.mcc_data_id;
+      const mccDataId  = (rawDataId != null && rawDataId !== '')
+        ? parseInt(rawDataId, 10)
+        : null;
+      const hasDataId  = mccDataId != null && !Number.isNaN(mccDataId);
+
       const attrs = {
         [f.requestNumber]:  mccNo,
         [f.mission]:        incidentId,
@@ -1689,10 +1695,9 @@ function FollowupComposer({ resource, onCancel, onSubmitted }) {
         [f.positionId]:     (author.position || '').trim(),
         [f.updatingAgency]: (author.agency   || '').trim(),
         [f.email]:          (author.email    || '').trim(),
-        // WebEOC foreign key — links this followup back to the originating
-        // MCC record. Null when the dataid isn't available (e.g. followups
-        // logged from the deployment side without MCC context).
-        ...(mccDataId ? { [f.mccDataId]: mccDataId } : {}),
+        // WebEOC foreign key (Integer) — links this followup back to the
+        // originating MCC record. Omitted when dataid isn't available.
+        ...(hasDataId ? { [f.mccDataId]: mccDataId } : {}),
       };
       console.info('[Followup] saving attrs:', attrs);
       const result = await addFollowup(attrs);
