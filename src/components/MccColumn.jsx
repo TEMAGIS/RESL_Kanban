@@ -139,21 +139,24 @@ function MccCard({ m, lastFollowupTs, needsFollowup = false, deploymentCount = 0
   const edited   = fmtShort(m[f.editDate]);
   const lastFu   = describeRecent(lastFollowupTs);
 
-  // Register the card as a drop target for inventory drags. The
-  // `mcc:` id prefix lets Board.jsx's onDragEnd identify what kind of
-  // drop happened (vs. status-column drops which use raw column ids).
-  // `data.mcc` carries the full MCC record through to the drop handler
-  // so it can build the new deployment without re-looking-up.
+  // Register the card as a drop target for inventory AND ReadyOp
+  // drags. The `mcc:` id prefix lets Board.jsx's onDragEnd identify
+  // what kind of drop happened (vs. status-column drops which use raw
+  // column ids). `data.mcc` carries the full MCC record through to the
+  // drop handler so it can build the new deployment without
+  // re-looking-up.
   const mccOid = m[f.objectId];
   const { isOver, setNodeRef, active } = useDroppable({
     id:       `mcc:${mccOid}`,
     data:     { type: 'mcc', mcc: m },
-    // Only highlight when an inventory drag is hovering — status drags
-    // can pass over MCC cards without triggering the drop styling.
+    // Only highlight when an inventory or ReadyOp drag is hovering —
+    // status drags can pass over MCC cards without triggering the
+    // drop styling.
     disabled: false,
   });
-  const isInventoryDrag = active && active.data && active.data.current
-    && active.data.current.type === 'inventory';
+  const activeDragType = active && active.data && active.data.current
+    && active.data.current.type;
+  const isInventoryDrag = activeDragType === 'inventory' || activeDragType === 'readyop';
   const dropClass = (isOver && isInventoryDrag) ? ' is-drop-target' : '';
 
   // Stop pointer/click on the info button from also triggering the

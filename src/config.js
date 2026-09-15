@@ -298,6 +298,70 @@ export const INVENTORY_SERVICE = {
   },
 };
 
+// ============================================================================
+//  READYOP_SERVICE — TEMA's ReadyOp contact roster, used to populate an
+//  optional "ReadyOp Users" column on the board. Hidden by default;
+//  shown only when the URL has `?readyop=1` (see readUrlReadyOp in
+//  Board.jsx and the README's URL parameter table). Like Inventory,
+//  contacts are read-only here and draggable — dropping one on an MCC
+//  card creates a new Personnel deployment with the contact's name /
+//  organization / title copied across (see createDeploymentFromReadyOpUser
+//  in service.js).
+//
+//  ReadyOp isn't an AGOL service — it's TEMA's separate contacts system,
+//  reached through readyopClient.js. This mirrors the standalone
+//  "ReadyOp Edit" app included in this repo (see the `ReadyOp Edit/`
+//  folder, especially readyop-client.js and config.js, for the
+//  reference implementation and full API writeup) — the account_id/
+//  token used to authenticate against ReadyOp are never stored in this
+//  app; they're read at runtime from a protected AGOL feature layer
+//  using the signed-in user's own ArcGIS token, exactly like ReadyOp
+//  Edit's arcgis-auth.js does.
+// ============================================================================
+export const READYOP_SERVICE = {
+  // Protected feature layer holding the ReadyOp account_id/token as its
+  // one record — same layer/shape as ReadyOp Edit's CREDENTIALS_LAYER_URL.
+  credentialsLayerUrl: import.meta.env.VITE_READYOP_CREDENTIALS_URL ||
+    'https://services1.arcgis.com/kILp9lqGUeOhnDbI/arcgis/rest/services/ReadyOp/FeatureServer/0',
+  accountIdField: 'account_id',
+  tokenField:     'token',
+
+  // ReadyOp's API sends no CORS headers (see ReadyOp Edit/README.md),
+  // so requests go through the same CORS relay that app uses. Override
+  // with VITE_READYOP_API_BASE_URL if ReadyOp later whitelists this
+  // app's origin(s) and the relay is no longer needed.
+  apiBaseUrl: import.meta.env.VITE_READYOP_API_BASE_URL ||
+    'https://readyop-contacts-relay.tnreadyop.workers.dev',
+  agencyId: import.meta.env.VITE_READYOP_AGENCY_ID || '1',
+
+  // The whole roster is fetched once (like Inventory) rather than
+  // searched server-side, so the column's search box and drag-drop
+  // both work instantly against an in-memory list. See
+  // fetchAllReadyOpUsers in service.js.
+  pageSize: 1000,
+
+  // Flat ReadyOp contact field names — these come from ReadyOp's own
+  // API response shape, NOT this app's `FIELDS` map (which is AGOL-only).
+  fields: {
+    id:           'ContactID',
+    first:        'First',
+    last:         'Last',
+    organization: 'Organization',
+    title:        'Title',
+    tags:         'Tags',
+  },
+};
+
+// "First Last" display name for a ReadyOp contact, trimmed. Falls back
+// to Organization when both name parts are blank (some ReadyOp records
+// are organization-only entries).
+export function readyOpContactName(c) {
+  if (!c) return '';
+  const f = READYOP_SERVICE.fields;
+  const name = [c[f.first], c[f.last]].filter(Boolean).join(' ').trim();
+  return name || String(c[f.organization] || '').trim();
+}
+
 export const FOLLOWUP_SERVICE = {
   url: import.meta.env.VITE_FOLLOWUP_URL ||
        'https://services1.arcgis.com/kILp9lqGUeOhnDbI/ArcGIS/rest/services/MCCFollowup_v3/FeatureServer/0',
@@ -500,6 +564,13 @@ export const COLUMNS = [
   // dropping one on an MCC card creates a new Equipment deployment
   // (which lands in Unassigned just to the right).
   { id: 'inventory',   label: 'Inventory',   kind: 'inventory',  accent: '#7c3aed', defaultHidden: false },
+  // Optional ReadyOp contact roster — disabled by default; enabled
+  // for the session via `?readyop=1` (see readUrlReadyOp in Board.jsx,
+  // which folds it into `disabledColumnIds` the same way
+  // `?hide_inventory=1` disables the Inventory column above, just
+  // inverted). Cards are draggable onto an MCC card the same way
+  // Inventory cards are.
+  { id: 'readyop',     label: 'ReadyOp Users', kind: 'readyop',  accent: '#f97316', defaultHidden: false },
   { id: 'mcc',         label: 'MCC',         kind: 'mcc',        accent: '#0b5fa5', defaultHidden: false },
   // Unassigned sits next to MCC because newly-created inventory
   // deployments land here for triage — dragging into a real status

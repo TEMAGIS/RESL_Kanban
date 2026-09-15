@@ -121,6 +121,19 @@ are blocked inside the AGOL login page's `X-Frame-Options`).
 - `src/components/Column.jsx` / `Card.jsx` — droppable column / draggable
   card. Cards are draggable on touch with a 150ms hold so they don't snag
   scroll.
+- `src/components/ReadyOpColumn.jsx` — optional column (only rendered
+  when `?readyop=1`, see "URL parameter scoping" below) listing TEMA's
+  ReadyOp contact roster. Mirrors `InventoryColumn.jsx`: read-only,
+  searchable, cards draggable onto an MCC card. `src/readyopClient.js`
+  is the read-only ReadyOp Contacts REST API client; `service.js`'s
+  `fetchAllReadyOpUsers` / `createDeploymentFromReadyOpUser` handle the
+  roster fetch and the resulting Personnel deployment. The ReadyOp
+  account_id/token are never stored in this app — they're read at
+  runtime from the same protected AGOL feature layer the standalone
+  "ReadyOp Edit" app (also in this repo, see `ReadyOp Edit/`) uses,
+  via the signed-in user's own ArcGIS token. Override the defaults with
+  `VITE_READYOP_CREDENTIALS_URL`, `VITE_READYOP_API_BASE_URL`, and
+  `VITE_READYOP_AGENCY_ID` (see `.env.example`).
 
 ## URL parameter scoping
 
@@ -140,6 +153,7 @@ Supported parameters:
 | `county` | County | `?county=Davidson` |
 | `readonly` | Disables drag-drop AND editing in the detail modal | `?readonly=1` (also accepts `true`, `yes`, `on`) |
 | `hide_inventory` | Removes the Inventory column from the board AND the Columns toggle menu | `?hide_inventory=1` (also accepts `true`, `yes`, `on`) |
+| `readyop` | Adds the ReadyOp Users column (hidden by default) so ReadyOp contacts can be dragged onto an MCC card | `?readyop=1` (also accepts `true`, `yes`, `on`) |
 
 Read-only mode is great for stakeholder/public dashboard embeds where
 viewers should be able to see and search the data but never accidentally
@@ -156,6 +170,18 @@ default-hidden when `hide_inventory=1` since it's the landing pad for
 inventory drops; users can still toggle it back on via the Columns
 control. Combines naturally with `readonly=1` for a fully view-only
 public board.
+
+`readyop` is the opposite of `hide_inventory` — it's OFF by default and
+adds a column when turned on. Set `?readyop=1` to fetch TEMA's ReadyOp
+contact roster and show it as a "ReadyOp Users" column, styled and
+behaving like the Inventory column: read-only, searchable, and each
+contact is draggable onto an MCC card. Dropping a contact creates a new
+Personnel deployment (lands in Unassigned, same as an inventory drop)
+with the contact's name, organization, and title/phone/email copied
+across. Nothing is fetched from ReadyOp, and the column doesn't appear
+in the Columns toggle, unless this parameter is set — so it's safe to
+leave off for embeds that don't need it. See "How it works" below for
+the credentials/config this depends on.
 
 Combine any number of them: `?mission=...&esf=...`. **You must URL-encode
 `#` as `%23`** — a literal `#` in a URL marks the fragment, so anything

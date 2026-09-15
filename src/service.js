@@ -3,9 +3,10 @@
 //  on every request and silently refreshes once on a 498/499 response.
 // ============================================================================
 
-import { CONFIG, FIELDS, MCC_SERVICE, FOLLOWUP_SERVICE, HISTORY_SERVICE, INVENTORY_SERVICE } from './config.js';
+import { CONFIG, FIELDS, MCC_SERVICE, FOLLOWUP_SERVICE, HISTORY_SERVICE, INVENTORY_SERVICE, READYOP_SERVICE, readyOpContactName } from './config.js';
 import { getToken, ensureFreshToken, clearStoredToken } from './auth.js';
 import { lookupTnCountyByName } from './regions.js';
+import { listContacts as listReadyOpContacts } from './readyopClient.js';
 
 async function arcgisFetch(url, init, _retried) {
   const res = await fetch(url, init);
@@ -700,6 +701,170 @@ export async function createDeploymentFromInventory(mcc, inv, { status = null } 
     inv[inf.tagNumber],
     status,
   );
+
+  return result;
+}
+
+// ─── ReadyOp (contact roster) ──────────────────────────────────────────
+// Reads the ReadyOp account_id/token from the protected AGOL layer
+// referenced by READYOP_SERVICE.credentialsLayerUrl, using this app's
+// own signed-in ArcGIS token to authorize the read — same approach as
+// the standalone ReadyOp Edit app's arcgis-auth.js. Cached in memory
+// only for the life of the page; never written to localStorage,
+// sessionStorage, or anywhere else.
+let readyOpCredsCache = null;
+async function getReadyOpCredentials() {
+  if (readyOpCredsCache) return readyOpCredsCache;
+
+  await ensureFreshToken();
+  const TOKEN = getToken();
+  const rc = READYOP_SERVICE;
+
+  const url = new URL(`${rc.credentialsLayerUrl}/query`);
+  url.searchParams.set('where', '1=1');
+  url.searchParams.set('outFields', `${rc.accountIdField},${rc.tokenField}`);
+  url.searchParams.set('returnGeometry', 'false');
+  url.searchParams.set('f', 'json');
+  url.searchParams.set('token', TOKEN.accessToken);
+
+  const res = await fetch(url.toString());
+  if (!res.ok) throw new Error(`ReadyOp credentials layer query failed: HTTP ${res.status}`);
+  const data = await res.json();
+  if (data.error) {
+    throw new Error(`ReadyOp credentials layer query failed: ${data.error.message || JSON.stringify(data.error)}`);
+  }
+  const feature = data.features && data.features[0];
+  if (!feature) throw new Error('ReadyOp credentials layer returned no records.');
+
+  const accountId = feature.attributes[rc.accountIdField];
+  const token     = feature.attributes[rc.tokenField];
+  if (!accountId || !token) {
+    throw new Error(
+      `ReadyOp credentials layer record is missing "${rc.accountIdField}" or "${rc.tokenField}". ` +
+      'Check READYOP_SERVICE field names in src/config.js against the layer schema.'
+    );
+  }
+  readyOpCredsCache = { accountId: String(accountId), token: String(token) };
+  return readyOpCredsCache;
+}
+
+// Fetch the entire ReadyOp contact roster once (paged behind the
+// scenes), mirroring fetchAllInventory — populates the optional
+// "ReadyOp Users" column. Only ever called when `?readyop=1` is set
+// (see Board.jsx), so there's no bandwidth/latency cost otherwise.
+// Contacts are read-only here; this app never writes back to ReadyOp.
+export async function fetchAllReadyOpUsers() {
+  const creds = await getReadyOpCredentials();
+  const allContacts = [];
+  let page = 0;
+  let pages = 1;
+  let safety = 50;
+  do {
+    const result = await listReadyOpContacts(creds, { page, pageSize: READYOP_SERVICE.pageSize });
+    const contacts = result.Contacts || [];
+    pages = result.Pages ?? 1;
+    allContacts.push(...contacts);
+    page++;
+  } while (page < pages && safety-- > 0);
+  return allContacts;
+}
+
+// Create a new Personnel deployment from a ReadyOp contact dropped on
+// an MCC card. Mirrors createDeploymentFromInventory above:
+//   • Identity / mission — copied from the MCC: request_number_rpt,
+//     mission_id_rpt, mission_year_rpt + mission_number_rpt (parsed),
+//     county_rpt, region_rpt.
+//   • Resource — resource_kind = 'Personnel', personnel_count = 1,
+//     identifier = the contact's "First Last" name, entity_rpt =
+//     Organization, resl_note = Title + phone/email so whoever picks
+//     up the card can reach the person directly.
+//   • Defaults — item_status = null (new card lands in Unassigned for
+//     the user to triage / drag to a real status column).
+// Returns the addResults entry, including the new objectId.
+export async function createDeploymentFromReadyOpUser(mcc, user, { status = null } = {}) {
+  if (!mcc) throw new Error('Missing MCC record');
+  if (!user) throw new Error('Missing ReadyOp user');
+
+  await ensureFreshToken();
+  const TOKEN = getToken();
+
+  const mf = MCC_SERVICE.fields;
+  const rf = READYOP_SERVICE.fields;
+
+  // Pull MCC identity / location — identical to the inventory path.
+  const incidentId = mcc[mf.incidentId] || null;
+  const mccNumber  = mcc[mf.mccNumber]  ?? null;
+  const county     = mcc[mf.county]     || null;
+  const region     = mcc[mf.region]     || null;
+
+  let missionYear = null, missionNumber = null;
+  if (incidentId) {
+    const s = String(incidentId);
+    const yearMatch   = s.match(/^(\d{4})/);
+    const numberMatch = s.match(/#\s*(\d+)/);
+    if (yearMatch)   missionYear   = yearMatch[1];
+    if (numberMatch) missionNumber = numberMatch[1];
+  }
+
+  // Build a short, human-readable note from whatever contact details
+  // ReadyOp returned — Title plus the first phone/email on file, if
+  // any (Phones/Emails are ReadyOp's own array-shaped fields; see
+  // phonesToFields/emailsToFields in ReadyOp Edit/readyop-client.js
+  // for the inverse mapping used when ReadyOp Edit writes them back).
+  const name  = readyOpContactName(user);
+  const title = user[rf.title] || null;
+  const phone = (user.Phones && user.Phones[0] && user.Phones[0].Number) || null;
+  const email = (user.Emails && user.Emails[0] && user.Emails[0].Address) || null;
+  const noteParts = [title, phone, email].filter(Boolean);
+
+  const attributes = {
+    // Mission / identity
+    [FIELDS.requestNumber]: mccNumber,
+    [FIELDS.missionId]:     incidentId,
+    [FIELDS.missionYear]:   missionYear,
+    [FIELDS.missionNumber]: missionNumber,
+    // Location (county/region come from the MCC; address is filled in
+    // later via the detail modal's editable address row).
+    [FIELDS.county]:        county,
+    [FIELDS.region]:        region,
+    // Resource description — Personnel kind, 1 person.
+    [FIELDS.kind]:           'Personnel',
+    [FIELDS.personnelCount]: 1,
+    // ReadyOp-derived fields.
+    [FIELDS.identifier]:    name || null,
+    [FIELDS.entity]:        user[rf.organization] || null,
+    [FIELDS.reslNote]:      noteParts.length ? noteParts.join(' \u00b7 ') : null,
+    // Initial status.
+    [FIELDS.status]:        status,
+  };
+
+  const body = new URLSearchParams({
+    f:        'json',
+    token:    TOKEN.accessToken,
+    features: JSON.stringify([{ attributes }]),
+  });
+  const data = await arcgisFetch(`${CONFIG.serviceUrl}/addFeatures`, {
+    method:  'POST',
+    body,
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  });
+  const result = (data.addResults && data.addResults[0]) || null;
+  if (!result || !result.success) {
+    const msg = result && result.error
+      ? `${result.error.code}: ${result.error.description}`
+      : 'Create deployment failed';
+    throw new Error(msg);
+  }
+
+  // Log a 'create' history row — same rationale as
+  // createDeploymentFromInventory (no `before` snapshot since this is
+  // a new record).
+  logHistory({
+    before:  null,
+    after:   { ...attributes, [FIELDS.objectId]: result.objectId },
+    action:  'create',
+    changed: Object.keys(attributes),
+  });
 
   return result;
 }

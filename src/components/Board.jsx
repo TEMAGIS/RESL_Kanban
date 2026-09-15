@@ -9,13 +9,14 @@ import {
   useSensors,
   closestCenter,
 } from '@dnd-kit/core';
-import { COLUMNS, STATUS_COLUMNS, FIELDS, CONFIG, statusToColumnId, MCC_SERVICE, FOLLOWUP_SERVICE, INVENTORY_SERVICE } from '../config.js';
-import { fetchAllResources, fetchAllMccs, fetchAllInventory, fetchLayerMeta, updateAttributes, createDeploymentFromInventory, updateInventoryMobilizationStatus, fetchMccsForMission, fetchFollowupsForMission, duplicateDeployment, updateMccAttributes } from '../service.js';
+import { COLUMNS, STATUS_COLUMNS, FIELDS, CONFIG, statusToColumnId, MCC_SERVICE, FOLLOWUP_SERVICE, INVENTORY_SERVICE, READYOP_SERVICE, readyOpContactName } from '../config.js';
+import { fetchAllResources, fetchAllMccs, fetchAllInventory, fetchLayerMeta, updateAttributes, createDeploymentFromInventory, updateInventoryMobilizationStatus, fetchMccsForMission, fetchFollowupsForMission, duplicateDeployment, updateMccAttributes, fetchAllReadyOpUsers, createDeploymentFromReadyOpUser } from '../service.js';
 import Column from './Column.jsx';
 import Card from './Card.jsx';
 import MccColumn from './MccColumn.jsx';
 import MccDetailModal from './MccDetailModal.jsx';
 import InventoryColumn from './InventoryColumn.jsx';
+import ReadyOpColumn from './ReadyOpColumn.jsx';
 import { MainFilters, SortToggle, ColumnToggles } from './FilterBar.jsx';
 import MissionPicker from './MissionPicker.jsx';
 import Brand from './Brand.jsx';
@@ -77,6 +78,21 @@ function readUrlReadOnly() {
 function readUrlHideInventory() {
   if (typeof window === 'undefined') return false;
   const v = new URLSearchParams(window.location.search).get('hide_inventory');
+  if (!v) return false;
+  const s = v.trim().toLowerCase();
+  return s === '1' || s === 'true' || s === 'yes' || s === 'on';
+}
+
+// Shows the optional "ReadyOp Users" column (fetches the ReadyOp
+// contact roster and adds the draggable-users column to the board AND
+// the Columns toggle menu) when `?readyop=1` (or true/yes/on) is in
+// the URL. Off by default — the column, its fetch, and its entry in
+// the Columns toggle are all skipped unless this is set, same
+// mechanism as `hide_inventory` above just inverted (see
+// disabledColumnIds).
+function readUrlReadyOp() {
+  if (typeof window === 'undefined') return false;
+  const v = new URLSearchParams(window.location.search).get('readyop');
   if (!v) return false;
   const s = v.trim().toLowerCase();
   return s === '1' || s === 'true' || s === 'yes' || s === 'on';
@@ -288,6 +304,11 @@ export default function Board({ onSignOut }) {
   // as "Deploying…" until the resource list refreshes.
   const [inventoryItems,      setInventoryItems]      = useState([]);
   const [pendingInventoryTags, setPendingInventoryTags] = useState(() => new Set());
+  // ReadyOp contact roster (optional column) — mirrors inventoryItems /
+  // pendingInventoryTags above. `pendingReadyOpIds` tracks ReadyOp
+  // ContactIDs whose create-deployment is in flight.
+  const [readyOpUsers,        setReadyOpUsers]        = useState([]);
+  const [pendingReadyOpIds,   setPendingReadyOpIds]   = useState(() => new Set());
   const [mccDetailRow, setMccDetailRow]  = useState(null);
   const [missionFollowups, setMissionFollowups] = useState([]);
   const [readOnly]     = useState(() => readUrlReadOnly());
@@ -295,10 +316,15 @@ export default function Board({ onSignOut }) {
   // URL-driven kill switch for the inventory column. Read once at
   // boot; baked into `disabledColumnIds` for the render + toggle paths.
   const [hideInventory] = useState(() => readUrlHideInventory());
-  const disabledColumnIds = useMemo(
-    () => new Set(hideInventory ? ['inventory'] : []),
-    [hideInventory],
-  );
+  // URL-driven opt-IN for the ReadyOp Users column — off unless
+  // `?readyop=1` is set. Read once at boot alongside hideInventory.
+  const [showReadyOp] = useState(() => readUrlReadyOp());
+  const disabledColumnIds = useMemo(() => {
+    const s = new Set();
+    if (hideInventory) s.add('inventory');
+    if (!showReadyOp)  s.add('readyop');
+    return s;
+  }, [hideInventory, showReadyOp]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -317,7 +343,10 @@ export default function Board({ onSignOut }) {
       // Inventory fetch is skipped when ?hide_inventory=1 — no point
       // burning bandwidth on a list we won't render. Still tracked
       // here so the inventory state stays as an empty array.
-      const [resData, mccData, invData] = await Promise.all([
+      // ReadyOp fetch is likewise skipped unless ?readyop=1 — no point
+      // authenticating against ReadyOp or burning bandwidth on a
+      // roster that won't be shown.
+      const [resData, mccData, invData, readyOpData] = await Promise.all([
         fetchAllResources(),
         fetchAllMccs().catch((err) => {
           console.warn('[RESL-Kanban] fetchAllMccs failed:', err);
@@ -329,10 +358,17 @@ export default function Board({ onSignOut }) {
               console.warn('[RESL-Kanban] fetchAllInventory failed:', err);
               return [];
             }),
+        !showReadyOp
+          ? Promise.resolve([])
+          : fetchAllReadyOpUsers().catch((err) => {
+              console.warn('[RESL-Kanban] fetchAllReadyOpUsers failed:', err);
+              return [];
+            }),
       ]);
       setResources(resData);
       setAllMccs(mccData);
       setInventoryItems(invData);
+      setReadyOpUsers(readyOpData);
       setLastRefresh(new Date());
     } catch (err) {
       console.error(err);
@@ -699,6 +735,46 @@ export default function Board({ onSignOut }) {
         console.error('[RESL-Kanban] createDeploymentFromInventory failed:', err);
         const itemLabel = (inv[invF.item] || tag || 'inventory item');
         setError(`Could not deploy ${itemLabel}: ${err.message}`);
+
+
+    // ── ReadyOp → MCC: create a new Personnel deployment ───────────
+    if (activeData && activeData.type === 'readyop') {
+      const overId = String(over.id || '');
+      if (!overId.startsWith('mcc:')) return;            // wrong drop target
+      const overData = over.data && over.data.current;
+      const mcc = (overData && overData.mcc) || null;
+      const user = activeData.item;
+      if (!mcc || !user) return;
+
+      const rf = READYOP_SERVICE.fields;
+      const uid = String(user[rf.id] ?? '').trim();
+      // Mark as pending so the ReadyOp card greys out / shows
+      // "Assigning…" until the write completes.
+      if (uid) {
+        setPendingReadyOpIds((p) => new Set(p).add(uid));
+      }
+
+      try {
+        // No starting status — the new card lands in Unassigned for
+        // the user to triage by dragging into a real status column.
+        await createDeploymentFromReadyOpUser(mcc, user);
+        await refresh();
+      } catch (err) {
+        console.error('[RESL-Kanban] createDeploymentFromReadyOpUser failed:', err);
+        const label = readyOpContactName(user) || 'this user';
+        setError(`Could not assign ${label}: ${err.message}`);
+      } finally {
+        if (uid) {
+          setPendingReadyOpIds((p) => {
+            const next = new Set(p);
+            next.delete(uid);
+            return next;
+          });
+        }
+      }
+      return;
+    }
+
       } finally {
         if (tag) {
           setPendingInventoryTags((p) => {
@@ -909,6 +985,19 @@ export default function Board({ onSignOut }) {
                       loading={loading}
                       readOnly={readOnly}
                       pendingTagNumbers={pendingInventoryTags}
+                    />
+                  );
+                }
+                if (c.kind === 'readyop') {
+                  return (
+                    <ReadyOpColumn
+                      key={c.id}
+                      label={c.label}
+                      accent={c.accent}
+                      items={readyOpUsers}
+                      loading={loading}
+                      readOnly={readOnly}
+                      pendingIds={pendingReadyOpIds}
                     />
                   );
                 }

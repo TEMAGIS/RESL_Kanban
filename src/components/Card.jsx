@@ -121,7 +121,10 @@ function describeResource(r) {
   const kind   = String(r[FIELDS.kind] || '').toLowerCase();
   const equipN = v(r, FIELDS.equipmentName) || v(r, FIELDS.equipmentType);
   const equipQ = v(r, FIELDS.equipmentCount);
-  const teamN  = v(r, FIELDS.teamKind) || v(r, FIELDS.identifier);
+  const teamKind  = v(r, FIELDS.teamKind);
+  const teamN     = (teamKind && teamKind.toLowerCase() === 'other')
+    ? (v(r, 'resource_other') || v(r, FIELDS.identifier))
+    : (teamKind || v(r, FIELDS.identifier));
   const persQ  = v(r, FIELDS.personnelCount);
   const fallbk = v(r, FIELDS.resourceMain) || v(r, FIELDS.resourceType);
 

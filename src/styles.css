@@ -382,6 +382,11 @@ button { font-family: inherit; cursor: pointer; }
 .column.is-static.is-inventory {
   opacity: 1;
 }
+/* Same treatment for the optional ReadyOp Users column (only rendered
+   when ?readyop=1 — see Board.jsx) — static column, draggable cards. */
+.column.is-static.is-readyop {
+  opacity: 1;
+}
 .column-toolbar {
   padding: 8px 10px 4px;
   border-bottom: 1px solid var(--border);
