@@ -735,7 +735,17 @@ export default function Board({ onSignOut }) {
         console.error('[RESL-Kanban] createDeploymentFromInventory failed:', err);
         const itemLabel = (inv[invF.item] || tag || 'inventory item');
         setError(`Could not deploy ${itemLabel}: ${err.message}`);
-
+      } finally {
+        if (tag) {
+          setPendingInventoryTags((p) => {
+            const next = new Set(p);
+            next.delete(tag);
+            return next;
+          });
+        }
+      }
+      return;
+    }
 
     // ── ReadyOp → MCC: create a new Personnel deployment ───────────
     if (activeData && activeData.type === 'readyop') {
@@ -768,18 +778,6 @@ export default function Board({ onSignOut }) {
           setPendingReadyOpIds((p) => {
             const next = new Set(p);
             next.delete(uid);
-            return next;
-          });
-        }
-      }
-      return;
-    }
-
-      } finally {
-        if (tag) {
-          setPendingInventoryTags((p) => {
-            const next = new Set(p);
-            next.delete(tag);
             return next;
           });
         }

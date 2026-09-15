@@ -25,8 +25,15 @@ export default function ReadyOpColumn({
     if (!q) return items;
     const f = READYOP_SERVICE.fields;
     return items.filter((c) => {
+      // Phones/Emails are ReadyOp's own array-shaped fields (see
+      // readyOpContactName's neighboring comment in config.js) — pull
+      // every number/address in so a card is findable by the same
+      // contact info shown on it, not just name/org/title/tags.
+      const phones = Array.isArray(c.Phones) ? c.Phones.map((p) => p && p.Number) : [];
+      const emails = Array.isArray(c.Emails) ? c.Emails.map((e) => e && e.Address) : [];
       const hay = [
         readyOpContactName(c), c[f.organization], c[f.title], c[f.tags],
+        ...phones, ...emails,
       ].map((x) => (x == null ? '' : String(x).toLowerCase())).join(' ');
       return hay.includes(q);
     });
