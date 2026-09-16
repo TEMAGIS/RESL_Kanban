@@ -397,10 +397,11 @@ export function readyOpHasRequiredTag(c) {
   if (!c) return false;
   const raw = c[READYOP_SERVICE.fields.tags];
   if (!raw) return false;
-  return String(raw)
-    .split(',')
-    .map((t) => t.trim().toLowerCase())
-    .includes(required);
+  // Substring match on the whole Tags string, not an exact-token match —
+  // "tags include TEMA" should catch "TEMA", "TEMA Employee", "TEMA-HQ",
+  // "esf8, TEMA staff", etc. regardless of how the tag was actually
+  // worded on the ReadyOp side.
+  return String(raw).toLowerCase().includes(required);
 }
 
 export const FOLLOWUP_SERVICE = {

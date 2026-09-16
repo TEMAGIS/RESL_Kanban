@@ -371,7 +371,17 @@ export default function Board({ onSignOut }) {
       // Scope the column to READYOP_SERVICE.requiredTag (default
       // 'TEMA') rather than every contact ReadyOp returns for the
       // agency.
-      setReadyOpUsers(readyOpData.filter(readyOpHasRequiredTag));
+      const readyOpFiltered = readyOpData.filter(readyOpHasRequiredTag);
+      if (showReadyOp) {
+        console.info(
+          `[RESL-Kanban] ReadyOp roster: ${readyOpData.length} fetched, ` +
+          `${readyOpFiltered.length} match requiredTag ` +
+          `"${READYOP_SERVICE.requiredTag}". If that second number is 0 ` +
+          `but the first isn't, check the actual Tags values coming back ` +
+          `from ReadyOp against READYOP_SERVICE.requiredTag in config.js.`
+        );
+      }
+      setReadyOpUsers(readyOpFiltered);
       setLastRefresh(new Date());
     } catch (err) {
       console.error(err);
