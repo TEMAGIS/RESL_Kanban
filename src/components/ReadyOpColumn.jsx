@@ -111,6 +111,34 @@ function accentForStatus(status) {
   return col && col.accent ? col.accent : '#94a3b8';
 }
 
+// Static, non-interactive render used only inside Board.jsx's
+// DragOverlay — mirrors InventoryCardPreview for the same reason (the
+// real ReadyOpCard goes to opacity: 0 while dragging, per dnd-kit
+// convention, so this is what actually follows the cursor).
+export function ReadyOpCardPreview({ contact }) {
+  const f     = READYOP_SERVICE.fields;
+  const name  = readyOpContactName(contact) || '—';
+  const org   = v(contact, f.organization);
+  const title = v(contact, f.title);
+  const phone = (contact.Phones && contact.Phones[0] && contact.Phones[0].Number) || null;
+
+  return (
+    <div className="card inventory-card readyop-card is-dragging">
+      <div className="card-grid">
+        <div className="card-left">
+          <div className="card-title">{name}</div>
+          {(title || org) && (
+            <div className="card-county muted small">
+              {[title, org].filter(Boolean).join(' · ')}
+            </div>
+          )}
+          {phone && <div className="card-county muted small">{phone}</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ReadyOpCard({ contact, deployment, readOnly = false, pending = false }) {
   const f     = READYOP_SERVICE.fields;
   const id    = String(contact[f.id] ?? '');

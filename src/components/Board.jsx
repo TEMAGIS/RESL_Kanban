@@ -15,8 +15,8 @@ import Column from './Column.jsx';
 import Card from './Card.jsx';
 import MccColumn from './MccColumn.jsx';
 import MccDetailModal from './MccDetailModal.jsx';
-import InventoryColumn from './InventoryColumn.jsx';
-import ReadyOpColumn from './ReadyOpColumn.jsx';
+import InventoryColumn, { InventoryCardPreview } from './InventoryColumn.jsx';
+import ReadyOpColumn, { ReadyOpCardPreview } from './ReadyOpColumn.jsx';
 import { MainFilters, SortToggle, ColumnToggles } from './FilterBar.jsx';
 import MissionPicker from './MissionPicker.jsx';
 import Brand from './Brand.jsx';
@@ -257,6 +257,11 @@ export default function Board({ onSignOut }) {
   const [loading,      setLoading]       = useState(true);
   const [error,        setError]         = useState('');
   const [activeId,     setActiveId]      = useState(null);
+  // { type: 'inventory' | 'readyop', item } for the card currently
+  // being dragged, captured on dragstart — lets DragOverlay show a
+  // ghost for Inventory/ReadyOp drags too, not just status drags
+  // (which resolve their ghost via activeResource below instead).
+  const [activeDragData, setActiveDragData] = useState(null);
   const [pending,      setPending]       = useState(() => new Set());
   const [lastRefresh,  setLastRefresh]   = useState(null);
   // Initial filters and locked-filter set come from URL params, if any.
@@ -739,9 +744,13 @@ export default function Board({ onSignOut }) {
   const resetColumns = () => setHiddenColumns(new Set());
 
   // Drag handlers
-  const handleDragStart = (event) => setActiveId(String(event.active.id));
+  const handleDragStart = (event) => {
+    setActiveId(String(event.active.id));
+    setActiveDragData((event.active.data && event.active.data.current) || null);
+  };
   const handleDragEnd = async (event) => {
     setActiveId(null);
+    setActiveDragData(null);
     if (readOnly) return;                  // never write in read-only mode
     const { active, over } = event;
     if (!over) return;
@@ -1009,7 +1018,7 @@ export default function Board({ onSignOut }) {
             collisionDetection={closestCenter}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
-            onDragCancel={() => setActiveId(null)}
+            onDragCancel={() => { setActiveId(null); setActiveDragData(null); }}
           >
             <div className="board">
               {COLUMNS
@@ -1096,7 +1105,13 @@ export default function Board({ onSignOut }) {
               })}
             </div>
             <DragOverlay>
-              {activeResource ? <Card r={activeResource} dragging /> : null}
+              {activeDragData && activeDragData.type === 'inventory' ? (
+                <InventoryCardPreview inv={activeDragData.item} />
+              ) : activeDragData && activeDragData.type === 'readyop' ? (
+                <ReadyOpCardPreview contact={activeDragData.item} />
+              ) : activeResource ? (
+                <Card r={activeResource} dragging />
+              ) : null}
             </DragOverlay>
           </DndContext>
         </>

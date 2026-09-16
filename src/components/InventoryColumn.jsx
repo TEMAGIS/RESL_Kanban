@@ -115,6 +115,43 @@ function fmtShortDate(ms) {
   });
 }
 
+// Static, non-interactive render used only inside Board.jsx's
+// DragOverlay — the actual InventoryCard below is invisible (opacity:
+// 0) while dragging, per dnd-kit convention, so without this the
+// dragged item just disappears until it's dropped. No useDraggable
+// call here on purpose (this never moves on its own).
+export function InventoryCardPreview({ inv }) {
+  const f   = INVENTORY_SERVICE.fields;
+  const tag = v(inv, f.tagNumber);
+  const itm = v(inv, f.item);
+  const mk  = v(inv, f.make);
+  const md  = v(inv, f.model);
+  const dsc = v(inv, f.description);
+
+  return (
+    <div className="card inventory-card is-dragging">
+      <div className="card-grid">
+        <div className="card-left">
+          <div className="card-title">{itm || '—'}</div>
+          {(mk || md) && (
+            <div className="card-county muted small">
+              {[mk, md].filter(Boolean).join(' · ')}
+            </div>
+          )}
+          {dsc && <div className="card-county muted small">{dsc}</div>}
+        </div>
+        <div className="card-right">
+          {tag && (
+            <div className="card-qty">
+              <span className="muted small">Tag</span> {tag}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function InventoryCard({ inv, deployment, history, readOnly = false, pending = false }) {
   const f   = INVENTORY_SERVICE.fields;
   const oid = inv[f.objectId];
