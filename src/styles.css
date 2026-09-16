@@ -454,26 +454,47 @@ button { font-family: inherit; cursor: pointer; }
   font-size: 10px;
   margin-right: 1px;
 }
-/* "Release" button on a locked inventory card's pill — a quick escape
-   hatch for items stuck showing an active deployment from a past
-   mission that was never properly demobilized. Deliberately understated
-   (text-only) so it doesn't read as a primary action. */
-.inventory-quick-release {
-  margin-left: 6px;
-  padding: 1px 6px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--pill-color, #94a3b8) 45%, white);
-  background: white;
-  color: color-mix(in srgb, var(--pill-color, #94a3b8) 70%, black);
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  cursor: pointer;
-  line-height: 1.4;
+/* Inventory detail panel — "Return to inventory" action and its
+   inline confirm step, plus the "Mobilizations" history list. Reuses
+   the existing .btn / .modal-* chrome elsewhere; these are just the
+   pieces that don't already exist. */
+.modal-return-block {
+  margin-top: 10px;
 }
-.inventory-quick-release:hover {
-  background: color-mix(in srgb, var(--pill-color, #94a3b8) 12%, white);
+.modal-confirm-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff8ec;
+}
+.modal-confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.mobilization-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mobilization-row {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fbfbfd;
+}
+.mobilization-row-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
 }
 /* Sub-line under the status pill — distinct-mission count and last
    deployment date, computed on-the-fly from the resources state. */

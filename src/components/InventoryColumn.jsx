@@ -22,10 +22,7 @@ export default function InventoryColumn({
   loading = false,
   readOnly = false,
   pendingTagNumbers,    // Set<string> of tags currently being deployed
-  onQuickRelease,       // (deployment) => void — force a stuck/locked item
-                         // to Demobilized without stamping today's date as
-                         // the demob date (used when it was actually
-                         // demobilized on some earlier, unrecorded date).
+  onShowDetail,         // (inv) => void — open the inventory detail panel
 }) {
   const [query, setQuery] = useState('');
 
@@ -79,7 +76,7 @@ export default function InventoryColumn({
                 history={history}
                 readOnly={readOnly}
                 pending={pending}
-                onQuickRelease={onQuickRelease}
+                onShowDetail={onShowDetail}
               />
             );
           })
@@ -157,7 +154,7 @@ export function InventoryCardPreview({ inv }) {
   );
 }
 
-function InventoryCard({ inv, deployment, history, readOnly = false, pending = false, onQuickRelease }) {
+function InventoryCard({ inv, deployment, history, readOnly = false, pending = false, onShowDetail }) {
   const f   = INVENTORY_SERVICE.fields;
   const oid = inv[f.objectId];
   const tag = v(inv, f.tagNumber);
@@ -203,6 +200,12 @@ function InventoryCard({ inv, deployment, history, readOnly = false, pending = f
   else if (locked) title = `Currently deployed (${pillLabel}) — demobilize first to re-deploy`;
   else            title = 'Drag onto an MCC card to deploy this item';
 
+  const handleDetailClick = (e) => {
+    e.stopPropagation();
+    onShowDetail && onShowDetail(inv);
+  };
+  const swallowDown = (e) => e.stopPropagation();
+
   return (
     <div
       ref={setNodeRef}
@@ -212,6 +215,20 @@ function InventoryCard({ inv, deployment, history, readOnly = false, pending = f
       {...attributes}
       {...listeners}
     >
+      {onShowDetail && (
+        <button
+          type="button"
+          className="card-info-btn"
+          onPointerDown={swallowDown}
+          onMouseDown={swallowDown}
+          onTouchStart={swallowDown}
+          onClick={handleDetailClick}
+          title="Show details"
+          aria-label="Show details"
+        >
+          ⓘ
+        </button>
+      )}
       <div className="card-grid">
         <div className="card-left">
           <div className="card-title">{itm || '—'}</div>
@@ -231,24 +248,6 @@ function InventoryCard({ inv, deployment, history, readOnly = false, pending = f
             >
               {locked && <span className="inventory-pill-lock" aria-hidden="true">🔒</span>}
               {pillLabel}
-              {locked && onQuickRelease && !pending && (
-                <button
-                  type="button"
-                  className="inventory-quick-release"
-                  title="Release this item (mark Demobilized) without setting today's date as the demob date — use this when it was actually demobilized earlier but never updated."
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    if (window.confirm(
-                      `Release tag ${tag || oid}? This marks it Demobilized without setting a demobilization date, since it wasn't demobilized today. You can add the correct date later from the mission record.`
-                    )) {
-                      onQuickRelease(deployment);
-                    }
-                  }}
-                >
-                  Release
-                </button>
-              )}
             </div>
           )}
           {history && history.count > 0 && (() => {

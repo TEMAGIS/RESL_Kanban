@@ -21,6 +21,7 @@ import { MainFilters, SortToggle, ColumnToggles } from './FilterBar.jsx';
 import MissionPicker from './MissionPicker.jsx';
 import Brand from './Brand.jsx';
 import DetailModal from './DetailModal.jsx';
+import InventoryDetailModal from './InventoryDetailModal.jsx';
 
 const EMPTY_FILTERS = { mission: '', esf: '', county: '', kind: '', search: '' };
 
@@ -298,6 +299,7 @@ export default function Board({ onSignOut }) {
   });
   const [sortBy,       setSortBy]        = useState('updated'); // 'updated' | 'request'
   const [detailRow,    setDetailRow]     = useState(null);
+  const [inventoryDetailRow, setInventoryDetailRow] = useState(null);
   const [mccs,         setMccs]          = useState([]);
   // Every MCC across every mission — used by the mission picker so a
   // mission shows up as soon as the first MCC is filed, even if no
@@ -703,6 +705,24 @@ export default function Board({ onSignOut }) {
     return out;
   }, [resources, filters.mission]);
 
+  // tag_number → every deployment record ever tied to that tag, newest
+  // first by EditDate. Feeds the "Mobilizations" list in the Inventory
+  // detail panel — deploymentHistoryByTag above only has aggregated
+  // counts, this has the actual per-record list.
+  const deploymentsByTag = useMemo(() => {
+    const map = new Map();
+    for (const r of resources) {
+      const tag = String(r[FIELDS.tagNumber] ?? '').trim();
+      if (!tag) continue;
+      if (!map.has(tag)) map.set(tag, []);
+      map.get(tag).push(r);
+    }
+    for (const list of map.values()) {
+      list.sort((a, b) => Number(b[FIELDS.editDate] || 0) - Number(a[FIELDS.editDate] || 0));
+    }
+    return map;
+  }, [resources]);
+
   // Same idea as deployedByTag above, but keyed by ReadyOp contact
   // identity (name + organization) rather than tag_number — Personnel
   // resources created from a ReadyOp drag don't carry the ReadyOp
@@ -949,52 +969,74 @@ export default function Board({ onSignOut }) {
     }
   };
 
-  // Quick-release: unlocks an Inventory item that's stuck showing as
-  // actively deployed because an old deployment was never dragged to
-  // Demobilized. Sets item_status = 'Demobilized' WITHOUT stamping
-  // item_demobilization — unlike the normal drag-to-Demobilized flow
-  // (which always stamps today), we don't actually know when this one
-  // really ended, and today's date would be wrong. Leaves the date
-  // blank rather than guess at it.
-  const handleQuickRelease = async (deployment) => {
-    if (readOnly) return;
+  // Change the status of an Inventory item's linked deployment record
+  // directly from the detail panel. Mirrors the exact date-stamping
+  // rules the drag-and-drop status columns use (stamp today's date
+  // moving into Demobilized; stamp mobilization date only if it was
+  // blank moving into En Route/On Scene; recalc days_deployed either
+  // way) so a panel-driven change behaves identically to a drag.
+  const handleInventoryStatusChange = async (deployment, newStatus) => {
+    if (readOnly || !deployment) return;
     const oid = deployment[FIELDS.objectId];
     const tag = String(deployment[FIELDS.tagNumber] ?? '').trim();
     if (oid == null) return;
 
-    const previousStatus = deployment[FIELDS.status];
-    const previousEdit   = deployment[FIELDS.editDate];
-    const partial = { [FIELDS.status]: 'Demobilized' };
-    const rollbackSnapshot = { [FIELDS.editDate]: previousEdit, [FIELDS.status]: previousStatus };
+    const targetColId = statusToColumnId(newStatus);
+    if (statusToColumnId(deployment[FIELDS.status]) === targetColId) return;
 
-    const optimistic = { ...partial, [FIELDS.editDate]: Date.now() };
+    const previousEdit = deployment[FIELDS.editDate];
+    const now   = Date.now();
+    const today = todayUtcMidnightMs();
+    const partial = { [FIELDS.status]: newStatus || null };
+
+    const isDemobDrop = targetColId === 'demobilized';
+    const isMobDrop   = (targetColId === 'enroute' || targetColId === 'onscene');
+
+    if (isDemobDrop) {
+      // Always stamp the demob date — an explicit status change to
+      // Demobilized means "they demobilized today", same rule as
+      // dragging the card. For a record that ended on some earlier,
+      // unrecorded date, use "Return to inventory" instead — it never
+      // touches status or dates.
+      partial.item_demobilization = today;
+      const days = daysBetween(deployment.item_mobilization, today);
+      if (days != null) partial.days_deployed = days;
+    }
+    if (isMobDrop) {
+      // Only stamp if currently blank — preserves an earlier mob date.
+      const existingMob = deployment.item_mobilization;
+      const isBlank = existingMob == null || existingMob === '' || !Number.isFinite(Number(existingMob));
+      if (isBlank) {
+        partial.item_mobilization = today;
+        const days = daysBetween(today, deployment.item_demobilization);
+        if (days != null) partial.days_deployed = days;
+      }
+    }
+
+    const rollbackSnapshot = { [FIELDS.editDate]: previousEdit };
+    for (const k of Object.keys(partial)) rollbackSnapshot[k] = deployment[k];
+
+    const optimistic = { ...partial, [FIELDS.editDate]: now };
     setResources((rs) =>
       rs.map((r) => (r[FIELDS.objectId] === oid ? { ...r, ...optimistic } : r)),
     );
-    setDetailRow((prev) =>
-      prev && prev[FIELDS.objectId] === oid ? { ...prev, ...optimistic } : prev,
-    );
-    // Keyed by tag, not objectId — InventoryColumn's own pending state
-    // (the `pendingTagNumbers` prop) is what actually greys out the
-    // card / shows "Deploying…" while this write is in flight, and it
-    // looks items up by tag. (The generic `pending` Set below is keyed
-    // by objectId and only read by the status Column component.)
+    // Keyed by tag, not objectId — matches InventoryColumn's own
+    // `pendingTagNumbers` prop, which is what actually greys the card
+    // out / shows "Deploying…" while this write is in flight.
     if (tag) setPendingInventoryTags((p) => new Set(p).add(tag));
 
     try {
       await updateAttributes(oid, partial, deployment);
-      if (tag) updateInventoryMobilizationStatus(tag, 'Demobilized');
+      if (tag) updateInventoryMobilizationStatus(tag, newStatus);
       await refresh();
     } catch (err) {
-      console.error('[RESL-Kanban] quick release failed:', err);
+      console.error('[RESL-Kanban] inventory status change failed:', err);
       const label = tag ? `Tag ${tag}` : 'this item';
-      setError(`Could not release ${label}: ${err.message}`);
+      setError(`Could not update ${label}: ${err.message}`);
       setResources((rs) =>
         rs.map((r) => (r[FIELDS.objectId] === oid ? { ...r, ...rollbackSnapshot } : r)),
       );
-      setDetailRow((prev) =>
-        prev && prev[FIELDS.objectId] === oid ? { ...prev, ...rollbackSnapshot } : prev,
-      );
+      throw err; // let the modal surface the error inline too
     } finally {
       if (tag) {
         setPendingInventoryTags((p) => {
@@ -1003,6 +1045,51 @@ export default function Board({ onSignOut }) {
           return next;
         });
       }
+    }
+  };
+
+  // "Return to inventory": detaches a deployment record from its
+  // physical tag WITHOUT touching that record's status or any date
+  // field. For an item that's stuck showing "actively deployed"
+  // because an old mission's deployment was never dragged to
+  // Demobilized — rather than fabricate today's date on a record that
+  // didn't actually end today, this just clears the tag link so the
+  // item is immediately available again, while the old record's
+  // status/dates stay exactly as they were (accurate history for that
+  // mission, untouched).
+  const handleReturnToInventory = async (deployment) => {
+    if (readOnly || !deployment) return;
+    const oid = deployment[FIELDS.objectId];
+    const tag = String(deployment[FIELDS.tagNumber] ?? '').trim();
+    if (oid == null || !tag) return;
+
+    const partial = { [FIELDS.tagNumber]: null };
+    const rollbackSnapshot = { [FIELDS.tagNumber]: deployment[FIELDS.tagNumber] };
+
+    setResources((rs) =>
+      rs.map((r) => (r[FIELDS.objectId] === oid ? { ...r, ...partial } : r)),
+    );
+    setPendingInventoryTags((p) => new Set(p).add(tag));
+
+    try {
+      await updateAttributes(oid, partial, deployment);
+      // Clear the informational mirror on the inventory layer too —
+      // it's no longer linked to any current deployment.
+      updateInventoryMobilizationStatus(tag, null);
+      await refresh();
+    } catch (err) {
+      console.error('[RESL-Kanban] return to inventory failed:', err);
+      setError(`Could not return tag ${tag} to inventory: ${err.message}`);
+      setResources((rs) =>
+        rs.map((r) => (r[FIELDS.objectId] === oid ? { ...r, ...rollbackSnapshot } : r)),
+      );
+      throw err;
+    } finally {
+      setPendingInventoryTags((p) => {
+        const next = new Set(p);
+        next.delete(tag);
+        return next;
+      });
     }
   };
 
@@ -1108,7 +1195,7 @@ export default function Board({ onSignOut }) {
                       loading={loading}
                       readOnly={readOnly}
                       pendingTagNumbers={pendingInventoryTags}
-                      onQuickRelease={readOnly ? undefined : handleQuickRelease}
+                      onShowDetail={setInventoryDetailRow}
                     />
                   );
                 }
@@ -1293,6 +1380,24 @@ export default function Board({ onSignOut }) {
             throw err;
           }
         }}
+      />
+
+      <InventoryDetailModal
+        inv={inventoryDetailRow}
+        deployment={(() => {
+          if (!inventoryDetailRow) return null;
+          const tag = String(inventoryDetailRow[INVENTORY_SERVICE.fields.tagNumber] ?? '').trim();
+          return tag ? (deployedByTag.get(tag) || null) : null;
+        })()}
+        mobilizations={(() => {
+          if (!inventoryDetailRow) return [];
+          const tag = String(inventoryDetailRow[INVENTORY_SERVICE.fields.tagNumber] ?? '').trim();
+          return tag ? (deploymentsByTag.get(tag) || []) : [];
+        })()}
+        readOnly={readOnly}
+        onClose={() => setInventoryDetailRow(null)}
+        onStatusChange={readOnly ? undefined : handleInventoryStatusChange}
+        onReturnToInventory={readOnly ? undefined : handleReturnToInventory}
       />
     </div>
   );
