@@ -781,7 +781,7 @@ export async function fetchAllReadyOpUsers() {
 //   • Defaults — item_status = null (new card lands in Unassigned for
 //     the user to triage / drag to a real status column).
 // Returns the addResults entry, including the new objectId.
-export async function createDeploymentFromReadyOpUser(mcc, user, { status = null } = {}) {
+export async function createDeploymentFromReadyOpUser(mcc, user, { status = null, mobilizationDate = null } = {}) {
   if (!mcc) throw new Error('Missing MCC record');
   if (!user) throw new Error('Missing ReadyOp user');
 
@@ -816,6 +816,11 @@ export async function createDeploymentFromReadyOpUser(mcc, user, { status = null
   const phone = (user.Phones && user.Phones[0] && user.Phones[0].Number) || null;
   const email = (user.Emails && user.Emails[0] && user.Emails[0].Address) || null;
   const noteParts = [title, phone, email].filter(Boolean);
+  // Fold the phone number into `identifier` too (not just resl_note) —
+  // identifier is the "name" line every Personnel card already shows
+  // on the board, so this puts the number somewhere visible without
+  // opening the detail popup.
+  const identifier = phone ? `${name || 'Unknown'} \u00b7 ${phone}` : (name || null);
 
   const attributes = {
     // Mission / identity
@@ -831,11 +836,15 @@ export async function createDeploymentFromReadyOpUser(mcc, user, { status = null
     [FIELDS.kind]:           'Personnel',
     [FIELDS.personnelCount]: 1,
     // ReadyOp-derived fields.
-    [FIELDS.identifier]:    name || null,
+    [FIELDS.identifier]:    identifier,
     [FIELDS.entity]:        user[rf.organization] || null,
     [FIELDS.reslNote]:      noteParts.length ? noteParts.join(' \u00b7 ') : null,
-    // Initial status.
-    [FIELDS.status]:        status,
+    // Initial status + mobilization date. Mirrors the isMobDrop rule
+    // in Board.jsx's status-drag handler (En Route / On Scene stamps
+    // today's mobilization date) — the caller passes mobilizationDate
+    // only when status is one of those.
+    [FIELDS.status]:            status,
+    [FIELDS.itemMobilization]:  mobilizationDate,
   };
 
   const body = new URLSearchParams({
@@ -866,7 +875,10 @@ export async function createDeploymentFromReadyOpUser(mcc, user, { status = null
     changed: Object.keys(attributes),
   });
 
-  return result;
+  // Return the full new record (not just the raw addResults entry) so
+  // the caller can open the detail modal on it immediately, without
+  // waiting on — or re-deriving from — the next resources refresh.
+  return { ...attributes, [FIELDS.objectId]: result.objectId };
 }
 
 // Fetch MCC records for a given mission (incidentid). Drafts without an

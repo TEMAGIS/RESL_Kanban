@@ -7,7 +7,7 @@ import {
   KeyboardSensor,
   useSensor,
   useSensors,
-  closestCenter,
+  pointerWithin,
 } from '@dnd-kit/core';
 import { COLUMNS, STATUS_COLUMNS, FIELDS, CONFIG, statusToColumnId, MCC_SERVICE, FOLLOWUP_SERVICE, INVENTORY_SERVICE, READYOP_SERVICE, readyOpContactName, readyOpDeploymentKey, readyOpHasRequiredTag } from '../config.js';
 import { fetchAllResources, fetchAllMccs, fetchAllInventory, fetchLayerMeta, updateAttributes, createDeploymentFromInventory, updateInventoryMobilizationStatus, fetchMccsForMission, fetchFollowupsForMission, duplicateDeployment, updateMccAttributes, fetchAllReadyOpUsers, createDeploymentFromReadyOpUser } from '../service.js';
@@ -815,13 +815,20 @@ export default function Board({ onSignOut }) {
       }
 
       try {
-        // No starting status — the new card lands in Unassigned for
-        // the user to triage by dragging into a real status column.
         // ReadyOp assignments land directly in En Route (rather than
         // Unassigned like inventory) — dropping a person on an MCC means
-        // they're being sent, not just staged for triage.
-        await createDeploymentFromReadyOpUser(mcc, user, { status: 'En Route' });
+        // they're being sent, not just staged for triage. Stamp today's
+        // mobilization date at creation too, same rule the status-drag
+        // handler above uses for a fresh En Route/On Scene drop.
+        const newRecord = await createDeploymentFromReadyOpUser(mcc, user, {
+          status:           'En Route',
+          mobilizationDate: todayUtcMidnightMs(),
+        });
         await refresh();
+        // Open the detail popup on the new card right away so whoever
+        // dropped them can fill in the rest (address, notes, etc.)
+        // without having to go find it in the En Route column first.
+        setDetailRow(newRecord);
       } catch (err) {
         console.error('[RESL-Kanban] createDeploymentFromReadyOpUser failed:', err);
         const label = readyOpContactName(user) || 'this user';
@@ -1015,7 +1022,15 @@ export default function Board({ onSignOut }) {
 
           <DndContext
             sensors={sensors}
-            collisionDetection={closestCenter}
+            // pointerWithin (not closestCenter) — closestCenter always
+            // picks the nearest droppable by rect distance even when the
+            // pointer isn't anywhere near it, which meant dragging an
+            // Inventory/ReadyOp card back over its own column and
+            // releasing there could still resolve to "closest MCC card"
+            // and assign it. pointerWithin only matches when the pointer
+            // is actually over a drop target, so releasing anywhere else
+            // correctly cancels (over === null).
+            collisionDetection={pointerWithin}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
             onDragCancel={() => { setActiveId(null); setActiveDragData(null); }}
