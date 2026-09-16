@@ -171,8 +171,12 @@ function InventoryCard({ inv, deployment, history, readOnly = false, pending = f
   const isDemob   = !!deployment && depStatus === 'Demobilized';
   const isActive  = !!deployment && !isDemob;
   // Pill label: status verbatim, or "Unassigned" if linked but blank.
-  const pillLabel = deployment ? (depStatus || 'Unassigned') : null;
-  const pillColor = deployment ? accentForStatus(depStatus) : null;
+  // Only shown while actively deployed — once demobilized there's
+  // nothing useful the pill adds to the inventory list (the history
+  // line below already says "last <date>"), so it's suppressed the
+  // same way ReadyOpColumn hides its own status pill after demob.
+  const pillLabel = isActive ? (depStatus || 'Unassigned') : null;
+  const pillColor = isActive ? accentForStatus(depStatus) : null;
 
   // Lock the drag whenever the item has any non-Demobilized deployment
   // (including Unassigned). Demobilized and never-deployed items stay
