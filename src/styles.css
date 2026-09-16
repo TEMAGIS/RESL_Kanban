@@ -454,6 +454,27 @@ button { font-family: inherit; cursor: pointer; }
   font-size: 10px;
   margin-right: 1px;
 }
+/* "Release" button on a locked inventory card's pill — a quick escape
+   hatch for items stuck showing an active deployment from a past
+   mission that was never properly demobilized. Deliberately understated
+   (text-only) so it doesn't read as a primary action. */
+.inventory-quick-release {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--pill-color, #94a3b8) 45%, white);
+  background: white;
+  color: color-mix(in srgb, var(--pill-color, #94a3b8) 70%, black);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  line-height: 1.4;
+}
+.inventory-quick-release:hover {
+  background: color-mix(in srgb, var(--pill-color, #94a3b8) 12%, white);
+}
 /* Sub-line under the status pill — distinct-mission count and last
    deployment date, computed on-the-fly from the resources state. */
 .inventory-history {

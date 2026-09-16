@@ -949,6 +949,63 @@ export default function Board({ onSignOut }) {
     }
   };
 
+  // Quick-release: unlocks an Inventory item that's stuck showing as
+  // actively deployed because an old deployment was never dragged to
+  // Demobilized. Sets item_status = 'Demobilized' WITHOUT stamping
+  // item_demobilization — unlike the normal drag-to-Demobilized flow
+  // (which always stamps today), we don't actually know when this one
+  // really ended, and today's date would be wrong. Leaves the date
+  // blank rather than guess at it.
+  const handleQuickRelease = async (deployment) => {
+    if (readOnly) return;
+    const oid = deployment[FIELDS.objectId];
+    const tag = String(deployment[FIELDS.tagNumber] ?? '').trim();
+    if (oid == null) return;
+
+    const previousStatus = deployment[FIELDS.status];
+    const previousEdit   = deployment[FIELDS.editDate];
+    const partial = { [FIELDS.status]: 'Demobilized' };
+    const rollbackSnapshot = { [FIELDS.editDate]: previousEdit, [FIELDS.status]: previousStatus };
+
+    const optimistic = { ...partial, [FIELDS.editDate]: Date.now() };
+    setResources((rs) =>
+      rs.map((r) => (r[FIELDS.objectId] === oid ? { ...r, ...optimistic } : r)),
+    );
+    setDetailRow((prev) =>
+      prev && prev[FIELDS.objectId] === oid ? { ...prev, ...optimistic } : prev,
+    );
+    // Keyed by tag, not objectId — InventoryColumn's own pending state
+    // (the `pendingTagNumbers` prop) is what actually greys out the
+    // card / shows "Deploying…" while this write is in flight, and it
+    // looks items up by tag. (The generic `pending` Set below is keyed
+    // by objectId and only read by the status Column component.)
+    if (tag) setPendingInventoryTags((p) => new Set(p).add(tag));
+
+    try {
+      await updateAttributes(oid, partial, deployment);
+      if (tag) updateInventoryMobilizationStatus(tag, 'Demobilized');
+      await refresh();
+    } catch (err) {
+      console.error('[RESL-Kanban] quick release failed:', err);
+      const label = tag ? `Tag ${tag}` : 'this item';
+      setError(`Could not release ${label}: ${err.message}`);
+      setResources((rs) =>
+        rs.map((r) => (r[FIELDS.objectId] === oid ? { ...r, ...rollbackSnapshot } : r)),
+      );
+      setDetailRow((prev) =>
+        prev && prev[FIELDS.objectId] === oid ? { ...prev, ...rollbackSnapshot } : prev,
+      );
+    } finally {
+      if (tag) {
+        setPendingInventoryTags((p) => {
+          const next = new Set(p);
+          next.delete(tag);
+          return next;
+        });
+      }
+    }
+  };
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -1051,6 +1108,7 @@ export default function Board({ onSignOut }) {
                       loading={loading}
                       readOnly={readOnly}
                       pendingTagNumbers={pendingInventoryTags}
+                      onQuickRelease={readOnly ? undefined : handleQuickRelease}
                     />
                   );
                 }

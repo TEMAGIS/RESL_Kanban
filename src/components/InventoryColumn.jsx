@@ -22,6 +22,10 @@ export default function InventoryColumn({
   loading = false,
   readOnly = false,
   pendingTagNumbers,    // Set<string> of tags currently being deployed
+  onQuickRelease,       // (deployment) => void — force a stuck/locked item
+                         // to Demobilized without stamping today's date as
+                         // the demob date (used when it was actually
+                         // demobilized on some earlier, unrecorded date).
 }) {
   const [query, setQuery] = useState('');
 
@@ -75,6 +79,7 @@ export default function InventoryColumn({
                 history={history}
                 readOnly={readOnly}
                 pending={pending}
+                onQuickRelease={onQuickRelease}
               />
             );
           })
@@ -152,7 +157,7 @@ export function InventoryCardPreview({ inv }) {
   );
 }
 
-function InventoryCard({ inv, deployment, history, readOnly = false, pending = false }) {
+function InventoryCard({ inv, deployment, history, readOnly = false, pending = false, onQuickRelease }) {
   const f   = INVENTORY_SERVICE.fields;
   const oid = inv[f.objectId];
   const tag = v(inv, f.tagNumber);
@@ -226,6 +231,24 @@ function InventoryCard({ inv, deployment, history, readOnly = false, pending = f
             >
               {locked && <span className="inventory-pill-lock" aria-hidden="true">🔒</span>}
               {pillLabel}
+              {locked && onQuickRelease && !pending && (
+                <button
+                  type="button"
+                  className="inventory-quick-release"
+                  title="Release this item (mark Demobilized) without setting today's date as the demob date — use this when it was actually demobilized earlier but never updated."
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    if (window.confirm(
+                      `Release tag ${tag || oid}? This marks it Demobilized without setting a demobilization date, since it wasn't demobilized today. You can add the correct date later from the mission record.`
+                    )) {
+                      onQuickRelease(deployment);
+                    }
+                  }}
+                >
+                  Release
+                </button>
+              )}
             </div>
           )}
           {history && history.count > 0 && (() => {

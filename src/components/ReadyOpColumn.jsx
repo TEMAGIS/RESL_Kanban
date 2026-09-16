@@ -158,8 +158,14 @@ function ReadyOpCard({ contact, deployment, readOnly = false, pending = false })
   const isDemob   = !!deployment && depStatus === 'Demobilized';
   const isActive  = !!deployment && !isDemob;
   const locked    = isActive;
-  const pillLabel = deployment ? (depStatus || 'Unassigned') : null;
-  const pillColor = deployment ? accentForStatus(depStatus) : null;
+  // Only show the pill while actively deployed. Once demobilized
+  // there's no ongoing constraint on this person (the card is already
+  // unlocked below), so there's nothing useful the pill would be
+  // telling you — and unlike Inventory's tag-based history, there's no
+  // expiration on this: the same demobilized record would otherwise
+  // keep showing here indefinitely, until they're deployed again.
+  const pillLabel = isActive ? (depStatus || 'Unassigned') : null;
+  const pillColor = isActive ? accentForStatus(depStatus) : null;
 
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id:   `readyop:${id}`,
