@@ -1,0 +1,836 @@
+:root {
+  --border: #d8dee4;
+  --text-muted: #5b6570;
+  --accent: #1a6ee0;
+  --danger: #c62828;
+  --bg-subtle: #f6f8fa;
+  /* TN/TEMA brand colors — matches the login screen used across other
+     CUSEC/TEMA apps (e.g. the PREDS damage-assessment app) for visual
+     consistency. */
+  --tema-blue: #002868;
+  --tema-red: #bf0a30;
+  --focus: #ffbf47;
+  --radius-sm: 8px;
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.14);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg-subtle);
+  color: #1c2126;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 1.25rem;
+  background: var(--tema-blue);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
+}
+
+.topbar-brand { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.tn-badge-sm { width: 30px; height: 30px; flex-shrink: 0; }
+.topbar h1 { font-size: 1.05rem; margin: 0; color: #fff; font-weight: 700; letter-spacing: -0.2px; }
+
+.topbar-right { display: flex; align-items: center; flex-wrap: wrap; flex-shrink: 0; justify-content: flex-end; row-gap: 0.4rem; gap: 0.75rem; font-size: 0.85rem; color: rgba(255, 255, 255, 0.85); }
+.topbar-right button {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #fff;
+}
+.topbar-right button:hover { background: rgba(255, 255, 255, 0.22); border-color: #fff; }
+
+#status-bar {
+  padding: 0.45rem 1.25rem;
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+#status-bar.error { background: #fdecea; color: var(--danger); }
+
+/* ── Login screen ─────────────────────────────────────────── */
+#sign-in-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  background: linear-gradient(165deg, var(--tema-blue) 0%, #00193f 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  padding-top: max(24px, env(safe-area-inset-top));
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+}
+#sign-in-screen[hidden] { display: none; }
+
+.login-card {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border-radius: 18px;
+  padding: 28px 24px 22px;
+  box-shadow: var(--shadow-lg);
+}
+.login-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.login-brand .tn-badge { width: 56px; height: 56px; }
+.login-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f1117;
+  text-align: center;
+  letter-spacing: -0.3px;
+}
+.login-sub {
+  font-size: 13px;
+  color: #444c5c;
+  text-align: center;
+  line-height: 1.4;
+  max-width: 340px;
+  margin-top: 4px;
+}
+.login-btn {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--tema-blue);
+  color: white;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  min-height: 48px;
+  transition: opacity 0.15s, transform 0.05s;
+}
+.login-btn:hover { opacity: 0.92; }
+.login-btn:active { transform: scale(0.99); }
+.login-btn:disabled { opacity: 0.55; cursor: wait; }
+.login-btn-oauth { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.login-error {
+  background: #fde8ea;
+  border: 1px solid #f5c2c7;
+  color: #842029;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  line-height: 1.4;
+  display: none;
+  margin-bottom: 12px;
+}
+.login-error.visible { display: block; }
+.login-meta-link {
+  display: block;
+  text-align: center;
+  font-size: 12px;
+  color: #4f5665;
+  margin-top: 10px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+
+button {
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 6px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.9rem;
+}
+button:hover { border-color: var(--accent); }
+button[type="submit"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.app-layout {
+  display: grid;
+  /* Widened from the original minmax(260px,340px) — that cap was clipping
+     the search placeholder text ("…tags" got cut off). 440px echoes the
+     width PREDS itself settles on for its own single-column mobile layout
+     and its filter-drawer panel. */
+  grid-template-columns: minmax(320px, 440px) 1fr;
+  height: calc(100vh - 90px);
+}
+
+.list-pane {
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* Without this, a grid item's default min-width:auto lets its content
+     (the search form's inputs) force this column wider than the
+     minmax(260px,340px) track, spilling into/under the edit pane next to
+     it — this is what caused "Last name"/"Tags" to run under the right
+     panel. */
+  min-width: 0;
+}
+
+/* ── Narrow-viewport layout ────────────────────────────────────────
+   Below this width there's no room for list + edit side by side (this is
+   what was happening in the narrow Experience Builder sidebar — the list
+   pane was being squeezed and its placeholder text clipped). Below the
+   breakpoint, switch to PREDS-mobile-style single-column behavior: show
+   only one pane at a time, full width, with a "Back to list" button to
+   return — rather than a fixed narrow column always sharing space with a
+   pane that has nowhere to go. */
+@media (max-width: 760px) {
+  .app-layout {
+    display: block;
+    height: calc(100vh - 90px);
+  }
+  .app-layout .list-pane,
+  .app-layout .edit-pane {
+    height: 100%;
+  }
+  .list-pane { border-right: none; }
+  .app-layout.showing-edit .list-pane { display: none; }
+  .app-layout:not(.showing-edit) .edit-pane { display: none; }
+  .edit-back-btn { display: inline-flex; }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── Search bar ──────────────────────────────────────────────────
+   Single box, live-filters as you type against every field listed in
+   CONFIG.SEARCH_FIELDS (plus County/Region) — replaced the earlier
+   First/Last/Organization/Tags four-input grid. Styled to match the
+   sibling PREDS app's own search bar. */
+.search-wrap {
+  position: relative;
+  margin: 0.75rem 0.75rem 0.5rem;
+}
+.search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+#search-input {
+  width: 100%;
+  padding: 0.55rem 0.6rem 0.55rem 34px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  background: #fff;
+  color: #1c2126;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+#search-input:focus { border-color: var(--focus); box-shadow: 0 0 0 3px rgba(255, 191, 71, 0.35); }
+
+/* ── Region/County filters ─────────────────────────────────────────
+   Live directly in the header (see .topbar-filters below) rather than
+   behind a "Filter" button + slide-up drawer — this is a desktop-only
+   app (embedded in an Experience Builder widget, never a phone screen),
+   so there's no need for that mobile-style hide-behind-a-button pattern.
+   Visual language (tema-blue pills/combobox) still echoes the sibling
+   PREDS app's own filter styling. */
+.active-filters {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 0.5rem 0.75rem 0;
+  background: #fff;
+}
+.active-filters:empty { display: none; padding: 0; }
+.active-chip {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--tema-blue);
+  color: #fff;
+  border-radius: 12px;
+  padding: 3px 9px;
+  border: none;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  font-family: inherit;
+}
+.active-chip-x { font-size: 0.85rem; line-height: 1; opacity: 0.8; margin-left: 1px; }
+
+/* Filters sit inline in the header now, on the same --tema-blue
+   background the old drawer used — so .buf-label/.buf-row/.buft/.combo-*
+   below (all originally styled for that dark background) carry over
+   unchanged; only the group's own layout needs a header-appropriate
+   (single row, no bottom margin) treatment via the .topbar-* overrides
+   right below. */
+.topbar-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0 1.25rem;
+}
+.topbar-filter-group { display: flex; align-items: center; gap: 0.55rem; }
+.topbar-filter-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.75);
+  white-space: nowrap;
+}
+/* Two classes (not one) so this reliably beats the later, plain
+   `.buf-row { margin-bottom: 18px }` rule regardless of source order —
+   a same-specificity single-class override had been silently losing
+   that fight, leaving the 18px bottom margin on the pill row, which
+   inflated the Region group's height and pushed County (and its
+   "COUNTY" label) down out of line with it. */
+.topbar-filters .topbar-buf-row { margin-bottom: 0; }
+.topbar-combo { width: 210px; flex: 0 0 210px; }
+/* .buft (pill buttons) and .combo-input render at noticeably different
+   natural heights — the input's own padding/border added up to several
+   pixels taller than a pill button's — which left the Region and County
+   controls looking like they didn't line up with each other in the
+   header row. Pin both to the same height explicitly instead of leaving
+   it to each element's own padding to (not quite) match. */
+.topbar-filters .buft {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+}
+.topbar-filters .combo-input { height: 34px; }
+
+.buf-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.85);
+  margin: 0 0 6px;
+}
+.buf-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; }
+.buft {
+  padding: 6px 12px;
+  border-radius: 16px;
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.buft:hover { background: rgba(255, 255, 255, 0.18); }
+.buft.active { background: #fff; color: var(--tema-blue); border-color: #fff; }
+
+/* ── County combobox ──────────────────────────────────────────────
+   A type-to-filter combobox instead of a plain <select> — with ~90+
+   counties, scrolling a native dropdown to find one is slow. Typing
+   narrows the list live; arrow keys + Enter also work. */
+.combo { position: relative; }
+.combo-input {
+  width: 100%;
+  padding: 0.55rem 2rem 0.55rem 0.6rem;
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+}
+.combo-input::placeholder { color: rgba(255, 255, 255, 0.65); }
+.combo-input:focus { outline: 3px solid var(--focus); outline-offset: 1px; }
+.combo-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+}
+.combo-clear:hover { background: rgba(255, 255, 255, 0.26); }
+.combo-listbox {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+}
+.combo-listbox[hidden] { display: none; }
+.combo-option {
+  padding: 0.5rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #1c2126;
+  cursor: pointer;
+}
+.combo-option:hover,
+.combo-option.highlighted { background: var(--bg-subtle); }
+.combo-option.selected { color: var(--tema-blue); font-weight: 700; }
+.combo-option-empty { padding: 0.6rem; font-size: 0.8rem; color: var(--text-muted); cursor: default; }
+.combo-option-add { color: var(--tema-blue); font-weight: 700; }
+
+#contact-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.5rem;
+  overflow-y: auto;
+  flex: 1;
+  background: var(--bg-subtle);
+}
+
+.contact-row {
+  padding: 0.65rem 0.85rem;
+  margin-bottom: 0.4rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  transition: border-color 0.12s, box-shadow 0.12s, background 0.12s;
+}
+.contact-row:hover {
+  border-color: #c7d3e0;
+  box-shadow: 0 2px 6px rgba(16, 24, 40, 0.08);
+}
+.contact-row.selected {
+  background: #eaf1fb;
+  border-left-color: var(--tema-blue);
+  border-color: #c3d3ea;
+}
+.contact-row .name { font-weight: 600; font-size: 0.92rem; color: #0f1117; }
+.contact-row .sub { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.1rem; }
+.contact-row.empty {
+  color: var(--text-muted);
+  cursor: default;
+  padding: 1rem;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  text-align: center;
+}
+
+/* Text-only status line now — "Load more" was removed in favor of pure
+   continuous scroll (the list auto-loads the next page as the user
+   nears the bottom, and also auto-fills further pages up front if the
+   first page doesn't even fill the visible area, so there's always
+   something to scroll against). */
+.list-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 0.9rem;
+  border-top: 1px solid var(--border);
+  background: #fff;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.edit-pane { padding: 1.5rem; overflow-y: auto; background: var(--bg-subtle); }
+#edit-empty-state { color: var(--text-muted); }
+
+.edit-back-btn {
+  display: none; /* only shown below the 760px stacking breakpoint */
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 1rem;
+  background: #fff;
+  font-weight: 600;
+  color: var(--tema-blue);
+  border-color: var(--border);
+}
+
+/* Cap the edit form's width — wide enough for a 2-column grid of General
+   Info / Other Information / Phones / Emails (see .form-columns below)
+   to sit comfortably, without ballooning into an oversized single-column
+   sheet on very wide screens. */
+#edit-form { max-width: 1040px; }
+
+/* General Info / Other Information / Phones / Emails all sit in one
+   2-column grid (auto-flowing into a 2×2 layout in that reading order)
+   instead of Phones/Emails stacking full-width below — the goal is
+   fitting the whole form in view on a typical desktop without
+   scrolling. Collapses to a single column below 900px, where there
+   isn't room for two fieldsets side by side without cramming the
+   Phone/Email rows' number+type+checkbox trio. */
+.form-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1.1rem;
+}
+@media (max-width: 900px) {
+  .form-columns { grid-template-columns: 1fr; }
+}
+.form-col { margin-bottom: 0; }
+
+fieldset {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 0.9rem;
+  padding: 0.7rem 1rem 0.85rem;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+/* The Mailing Address Label fieldset lays out as a flex column so its
+   .address-label child (flex: 1) can actually fill the fieldset's full
+   height -- which the grid row stretches to match Public Contact next
+   to it (grid's default row alignment is stretch) -- instead of just
+   hugging its own min-height while the fieldset box grows around it. */
+#address-label-fieldset {
+  display: flex;
+  flex-direction: column;
+}
+legend {
+  font-weight: 700;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--tema-blue);
+  padding: 0 0.4rem;
+}
+
+/* Sizing here is intentionally compact — General Info, Other
+   Information, Phones, and Emails all share one screen (see
+   .form-columns), so every bit of vertical space saved per field keeps
+   the whole form in view without scrolling. */
+#edit-form label {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-bottom: 0.42rem;
+}
+#edit-form input:not([type="checkbox"]), #edit-form select {
+  display: block;
+  width: 100%;
+  margin-top: 0.2rem;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.88rem;
+  font-family: inherit;
+  color: #1c2126;
+  background: #fff;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+#edit-form input:not([type="checkbox"]):focus, #edit-form select:focus {
+  outline: none;
+  border-color: var(--tema-blue);
+  box-shadow: 0 0 0 3px rgba(0, 40, 104, 0.12);
+}
+
+.repeat-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr auto;
+  gap: 0.4rem;
+  align-items: center;
+  margin-bottom: 0.4rem;
+  min-width: 0;
+}
+.repeat-row input, .repeat-row select { min-width: 0; }
+.repeat-row .checkbox { display: flex; align-items: center; gap: 0.35rem; font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; }
+.repeat-row .checkbox input { width: auto; }
+
+/* Sits as a grid item now (paired with Public Contact in the top row of
+   .form-columns — see there and the fieldset.public-contact-fieldset
+   rule below), rather than after the whole form — so it stretches to
+   that row's height by default grid behavior; align-items centers the
+   button within it instead of pinning it to the top. Left-justified
+   (not flex-end) so the button sits right next to the Public Contact
+   box instead of stranded at the far right edge of its (roughly
+   half-form-width) grid column. */
+/* Sits above the form: a small uppercase eyebrow ("Contact") over the
+   record's display name, paired with Save changes on the right -- same
+   pattern as the edit-panel header in the Assigned Inventory app. Plain
+   (no card/border), just a flex row on the page background, since the
+   fieldsets below already carry the boxed look. */
+.edit-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.edit-toolbar-title-block { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.edit-toolbar-title {
+  font-weight: 700;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--tema-blue);
+}
+.edit-toolbar-subtitle {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #0f1117;
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.edit-toolbar .form-actions { flex-shrink: 0; }
+
+.form-actions { display: flex; align-items: center; justify-content: flex-start; }
+.form-actions button[type="submit"] {
+  background: var(--tema-blue);
+  border-color: var(--tema-blue);
+  color: #fff;
+  font-weight: 600;
+  padding: 0.55rem 1.1rem;
+  min-width: 132px;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+.form-actions button[type="submit"]:hover { background: #001d4d; border-color: #001d4d; }
+.form-actions button[type="submit"]:disabled { opacity: 0.75; cursor: default; }
+/* Unmistakable save confirmation — the button itself flashes green with
+   a checkmark for a couple seconds after a successful save, rather than
+   relying only on the small status-bar line up top. */
+.form-actions button[type="submit"].save-success {
+  background: #1a7f37;
+  border-color: #1a7f37;
+}
+
+/* Standalone checkbox field (e.g. "Share this contact with Public") —
+   not inside a .repeat-row, so styled to sit like the other #edit-form
+   labels but lay the checkbox and its text out inline. */
+#edit-form label.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.1rem;
+}
+#edit-form label.checkbox-label input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+/* A field whose ReadyOp custom-column mapping isn't known yet (see
+   config.js) — shown but disabled, rather than hidden, so it's obvious
+   the field exists and will start working once the mapping is filled
+   in. */
+#edit-form label.checkbox-label.field-pending { color: #9aa3ad; cursor: not-allowed; }
+#edit-form input:disabled { background: #f1f3f5; color: #9aa3ad; cursor: not-allowed; }
+
+/* ── "Public Contact" section (Share-Public checkbox + Public Phone) ──
+   Broken out of Other Information into its own section, paired with the
+   Mailing Address Label fieldset beside it in the grid's first row --
+   same top-left/top-right pairing pattern as General Info/Address below
+   it -- and visually called out with a tinted background/border, since
+   whoever's editing needs to spot and check this on a lot of contacts in
+   a row rather than hunt for one line among a dozen other fields. */
+#edit-form fieldset.public-contact-fieldset {
+  background: #eef3fb;
+  border-color: var(--tema-blue);
+}
+/* flex-start (not center) — both fields now start with a same-style
+   label line ("Sharing" / "Public Facing Phone Number") above their
+   control, so top-aligning the two columns lines up those label lines
+   with each other, same as any other pair of fields in the form.
+   (Centering them instead — the original approach, before the
+   checkbox got its own "Sharing" title — left the checkbox floating up
+   near the phone field's LABEL rather than level with its INPUT, since
+   the checkbox alone had no label line offsetting it to match.) */
+.public-contact-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.7rem 1rem;
+}
+/* margin-bottom 0.2rem here (not the usual 0.42rem #edit-form labels
+   use) to match the phone input's own margin-top exactly -- see
+   #edit-form label.checkbox-label.public-checkbox below, which zeroes
+   out its inherited margin-top for the same reason. The phone field's
+   label+input is one element (label wraps its input directly), so its
+   only label-to-control gap is the input's 0.2rem margin-top; the
+   checkbox is a separate title span *plus* a separate checkbox-label
+   below it, so without this the two gaps stack (0.42rem + the
+   checkbox-label's 0.1rem) and the checkbox pill sits visibly lower
+   than the phone input beside it instead of level with it. */
+.public-contact-field-title {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-bottom: 0.2rem;
+}
+.public-contact-row .public-checkbox-field { flex: 0 1 auto; }
+.public-contact-row .public-phone-field {
+  flex: 1 1 160px;
+  min-width: 150px;
+  margin-bottom: 0;
+}
+/* Read-only text, not a form control -- dashed border (instead of the
+   fields' solid border) says "preview" rather than "editable field" at
+   a glance. white-space: pre-line turns the \n-joined lines from
+   updateAddressLabelPreview() (see app.js) into an actual multi-line
+   block, like a printed label. height: 100% + the fieldset's own flex
+   column (see fieldset rule) lets it fill the fieldset -- which the
+   grid row stretches to match Public Contact's height (see
+   .form-columns) -- instead of just hugging its own min-height. */
+.address-label {
+  flex: 1;
+  min-height: 74px;
+  padding: 0.55rem 0.7rem;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  background: #fff;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: #1c2126;
+  white-space: pre-line;
+}
+.address-label:empty::before { content: "No address on file"; color: #9aa3ad; }
+/* Bigger click target than the standard .checkbox-label — this is the
+   one checked most often, over and over, while working through a list
+   of contacts -- but matched to the SAME box height as the phone input
+   beside it (vertical padding, border width, and the checkbox icon size
+   below are all sized to land at the same ~31px total height as
+   #edit-form's standard text input), so the two sit level at both top
+   AND bottom instead of just the top. It's not the bold text throwing
+   this off — bold doesn't add height — it was the extra padding/border/
+   checkbox-icon size this pill carried on top of the input's box. */
+#edit-form label.checkbox-label.public-checkbox {
+  /* Cancels the 0.1rem margin-top every .checkbox-label gets by default
+     -- combined with .public-contact-field-title's margin-bottom above,
+     that pairing is tuned to land this checkbox pill's top edge level
+     with the phone input beside it. */
+  margin-top: 0;
+  gap: 0.6rem;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #1c2126;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+#edit-form label.checkbox-label.public-checkbox:hover { border-color: var(--tema-blue); }
+#edit-form label.checkbox-label.public-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--tema-blue);
+  cursor: pointer;
+}
+#edit-form label.checkbox-label.public-checkbox.field-pending {
+  background: #f1f3f5;
+  border-color: var(--border);
+}
+
+/* When "Share this contact with Public" is checked, tint both this
+   section AND the Mailing Address Label fieldset beside it green
+   (`.is-public`, toggled in app.js by syncPublicContactHighlight() — on
+   checkbox change and when the edit form loads) — a quick, glanceable
+   "this one's public" signal on exactly the preview of what's being
+   shared, without tinting the actual editable Address fields below. */
+#edit-form fieldset.is-public {
+  background: #e9f7ee;
+  border-color: #1a7f37;
+}
+#edit-form fieldset.is-public legend { color: #1a7f37; }
+
+/* ── Tags picker ───────────────────────────────────────────────────
+   Type-to-add/select chip picker (multi-select version of the Region
+   pills), replacing a raw comma-separated text box. Reuses the same
+   .combo-listbox/.combo-option dropdown pattern the County filter's
+   combobox uses (see there), just in the edit form's light theme
+   instead of the header's dark blue. */
+#edit-form .field-group { margin-bottom: 0.42rem; }
+#edit-form .field-group > label { margin-bottom: 0.2rem; }
+.tag-input {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  width: 100%;
+  margin-top: 0.2rem;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.tag-input:focus-within {
+  border-color: var(--tema-blue);
+  box-shadow: 0 0 0 3px rgba(0, 40, 104, 0.12);
+}
+.tag-chips { display: contents; }
+.tag-chip {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--tema-blue);
+  color: #fff;
+  border-radius: 12px;
+  padding: 2px 6px 2px 9px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.tag-chip-remove {
+  background: none;
+  border: none;
+  color: #fff;
+  opacity: 0.8;
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+.tag-chip-remove:hover { opacity: 1; }
+/* Overrides the generic #edit-form input rule — this input sits inline
+   inside .tag-input's own bordered box, so it shouldn't draw a second
+   border/box of its own. */
+#edit-form .tag-input input#tags-input {
+  flex: 1 1 90px;
+  min-width: 90px;
+  width: auto;
+  margin: 0;
+  padding: 3px 2px;
+  border: none;
+  font-size: 0.85rem;
+}
+#edit-form .tag-input input#tags-input:focus { outline: none; box-shadow: none; }
+.tags-listbox { top: calc(100% + 4px); }

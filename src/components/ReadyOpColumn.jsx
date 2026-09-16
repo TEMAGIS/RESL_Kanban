@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import { READYOP_SERVICE, readyOpContactName } from '../config.js';
+import {
+  READYOP_SERVICE, FIELDS, COLUMNS, statusToColumnId,
+  readyOpContactName, readyOpDeploymentKey,
+} from '../config.js';
 
 // Optional column — only rendered when `?readyop=1` is in the URL (see
 // readUrlReadyOp / disabledColumnIds in Board.jsx and the README's URL
@@ -14,6 +17,7 @@ export default function ReadyOpColumn({
   label,
   accent,
   items = [],
+  deployedByKey,       // Map<string "name|org", current Personnel deployment record>
   loading = false,
   readOnly = false,
   pendingIds,          // Set<string> of ReadyOp ContactIDs currently being assigned
@@ -64,12 +68,20 @@ export default function ReadyOpColumn({
           <div className="empty-hint">No matches for "{query}".</div>
         ) : (
           filtered.map((c) => {
-            const id = String(c[READYOP_SERVICE.fields.id] ?? '');
+            const f = READYOP_SERVICE.fields;
+            const id = String(c[f.id] ?? '');
             const pending = !!(pendingIds && pendingIds.has(id));
+            // Same join used on the Board side (see deployedByReadyOpKey)
+            // — no ContactID is stored on the AGOL record, so name+org
+            // is the best available link back to "is this person
+            // already deployed?".
+            const key = readyOpDeploymentKey(readyOpContactName(c), c[f.organization]);
+            const deployment = (key !== '|' && deployedByKey) ? deployedByKey.get(key) : null;
             return (
               <ReadyOpCard
                 key={id || readyOpContactName(c)}
                 contact={c}
+                deployment={deployment}
                 readOnly={readOnly}
                 pending={pending}
               />
@@ -90,7 +102,16 @@ const v = (obj, key) => {
   return s.length ? s : null;
 };
 
-function ReadyOpCard({ contact, readOnly = false, pending = false }) {
+// Look up the accent color for a deployment status by translating
+// status → column id → COLUMNS entry. Mirrors the same helper in
+// InventoryColumn.jsx.
+function accentForStatus(status) {
+  const id  = statusToColumnId(status);
+  const col = COLUMNS.find((c) => c.id === id);
+  return col && col.accent ? col.accent : '#94a3b8';
+}
+
+function ReadyOpCard({ contact, deployment, readOnly = false, pending = false }) {
   const f     = READYOP_SERVICE.fields;
   const id    = String(contact[f.id] ?? '');
   const name  = readyOpContactName(contact) || '—';
@@ -101,10 +122,21 @@ function ReadyOpCard({ contact, readOnly = false, pending = false }) {
   // card is useful at a glance without opening ReadyOp itself.
   const phone = (contact.Phones && contact.Phones[0] && contact.Phones[0].Number) || null;
 
+  // Deployment context (if any) — mirrors InventoryCard: any
+  // non-Demobilized deployment counts as "actively assigned" and
+  // locks the card so this person can't be dropped on a second MCC
+  // while they're already out.
+  const depStatus = deployment ? String(deployment[FIELDS.status] || '').trim() : '';
+  const isDemob   = !!deployment && depStatus === 'Demobilized';
+  const isActive  = !!deployment && !isDemob;
+  const locked    = isActive;
+  const pillLabel = deployment ? (depStatus || 'Unassigned') : null;
+  const pillColor = deployment ? accentForStatus(depStatus) : null;
+
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id:   `readyop:${id}`,
     data: { type: 'readyop', item: contact },
-    disabled: readOnly || pending,
+    disabled: readOnly || pending || locked,
   });
 
   const style = {
@@ -113,14 +145,21 @@ function ReadyOpCard({ contact, readOnly = false, pending = false }) {
   };
 
   const classes = ['card', 'inventory-card', 'readyop-card'];
-  if (pending) classes.push('is-pending');
+  if (pending)  classes.push('is-pending');
+  if (locked)   classes.push('is-locked');
+  if (isDemob)  classes.push('is-demob');
+
+  let dragTitle;
+  if (pending)    dragTitle = 'Assigning — please wait…';
+  else if (locked) dragTitle = `Already deployed (${pillLabel}) — demobilize first to reassign`;
+  else            dragTitle = 'Drag onto an MCC card to assign this person';
 
   return (
     <div
       ref={setNodeRef}
       style={style}
       className={classes.join(' ')}
-      title={pending ? 'Assigning — please wait…' : 'Drag onto an MCC card to assign this person'}
+      title={dragTitle}
       {...attributes}
       {...listeners}
     >
@@ -133,6 +172,18 @@ function ReadyOpCard({ contact, readOnly = false, pending = false }) {
             </div>
           )}
           {phone && <div className="card-county muted small">{phone}</div>}
+          {pillLabel && (
+            <div
+              className="inventory-pill"
+              style={{
+                '--pill-color': pillColor,
+              }}
+              aria-label={`Currently ${pillLabel}`}
+            >
+              {locked && <span className="inventory-pill-lock" aria-hidden="true">🔒</span>}
+              {pillLabel}
+            </div>
+          )}
         </div>
       </div>
       {pending && <div className="card-pending">Assigning…</div>}

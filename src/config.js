@@ -340,10 +340,23 @@ export const READYOP_SERVICE = {
   // fetchAllReadyOpUsers in service.js.
   pageSize: 1000,
 
+  // Only contacts carrying this tag (case-insensitive, matched against
+  // the comma-separated Tags field — see readyOpHasRequiredTag below)
+  // are shown in the "ReadyOp Users" column. ReadyOp's contact roster
+  // spans more than just TEMA staff, so this scopes the column down to
+  // the people relevant here. Set to '' (or VITE_READYOP_REQUIRED_TAG=
+  // blank) to show every contact regardless of tag.
+  requiredTag: import.meta.env.VITE_READYOP_REQUIRED_TAG ?? 'TEMA',
+
   // Flat ReadyOp contact field names — these come from ReadyOp's own
   // API response shape, NOT this app's `FIELDS` map (which is AGOL-only).
   fields: {
-    id:           'ContactID',
+    // ReadyOp's own API returns this field as "Contact ID" (with a
+    // space) — see ReadyOp Edit/app.js's c["Contact ID"] usage, the
+    // reference implementation. A mismatch here silently empties this
+    // field for every contact, which breaks drag identity (every card
+    // ends up sharing the same empty draggable id).
+    id:           'Contact ID',
     first:        'First',
     last:         'Last',
     organization: 'Organization',
@@ -360,6 +373,34 @@ export function readyOpContactName(c) {
   const f = READYOP_SERVICE.fields;
   const name = [c[f.first], c[f.last]].filter(Boolean).join(' ').trim();
   return name || String(c[f.organization] || '').trim();
+}
+
+// Join key linking a ReadyOp contact to the Personnel deployment it
+// created (see createDeploymentFromReadyOpUser in service.js, which
+// copies name + organization onto the new record — there's no
+// ContactID stored on the AGOL side). Used by Board.jsx / ReadyOpColumn
+// to lock a contact's card while they're already actively deployed,
+// mirroring how the Inventory column locks by tag_number.
+export function readyOpDeploymentKey(name, organization) {
+  return `${String(name || '').trim().toLowerCase()}|${String(organization || '').trim().toLowerCase()}`;
+}
+
+// True when a ReadyOp contact carries READYOP_SERVICE.requiredTag in
+// its Tags field. Tags is a comma-separated string on ReadyOp's side
+// (see ReadyOp Edit/app.js's own `Tags.split(',')` handling) — this
+// matches a whole tag, case-insensitively, not a raw substring, so
+// "TEMA" won't accidentally match some unrelated "TEMA-adjacent" tag.
+// Returns true for everyone when requiredTag is blank (filter off).
+export function readyOpHasRequiredTag(c) {
+  const required = String(READYOP_SERVICE.requiredTag || '').trim().toLowerCase();
+  if (!required) return true;
+  if (!c) return false;
+  const raw = c[READYOP_SERVICE.fields.tags];
+  if (!raw) return false;
+  return String(raw)
+    .split(',')
+    .map((t) => t.trim().toLowerCase())
+    .includes(required);
 }
 
 export const FOLLOWUP_SERVICE = {

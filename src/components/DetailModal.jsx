@@ -84,7 +84,6 @@ const has = (v) => {
 // Helpers for the Resource section — equipment_count and personnel_count
 // only apply to one kind each (per the Survey123 `relevant` rules).
 const isEquipment = (r) => String(r?.resource_kind || '').toLowerCase().includes('equip');
-const isTeam      = (r) => String(r?.resource_kind || '').toLowerCase().includes('team');
 
 // AGOL date-only fields are stored as UTC midnight epoch ms. These two
 // helpers convert between that representation and the `YYYY-MM-DD`
@@ -952,7 +951,11 @@ export default function DetailModal({ r, followupCount = 0, onClose, onUpdate, o
             // Saving it also writes qty_item to keep Survey123's
             // calculated quantity in sync (Survey123 only recalculates
             // at form-submit time; direct edits via this app bypass it).
-            !isTeam(r) && {
+            // Show only for actual Equipment-kind resources. Was
+            // `!isTeam(r)`, which also (wrongly) showed this for the newer
+            // 'Personnel' kind (ReadyOp assignments) since that's neither
+            // Team nor Equipment.
+            isEquipment(r) && {
               label: 'Equipment count',
               value: r.equipment_count,
               editable: true,

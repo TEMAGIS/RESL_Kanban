@@ -9,7 +9,7 @@ import {
   useSensors,
   closestCenter,
 } from '@dnd-kit/core';
-import { COLUMNS, STATUS_COLUMNS, FIELDS, CONFIG, statusToColumnId, MCC_SERVICE, FOLLOWUP_SERVICE, INVENTORY_SERVICE, READYOP_SERVICE, readyOpContactName } from '../config.js';
+import { COLUMNS, STATUS_COLUMNS, FIELDS, CONFIG, statusToColumnId, MCC_SERVICE, FOLLOWUP_SERVICE, INVENTORY_SERVICE, READYOP_SERVICE, readyOpContactName, readyOpDeploymentKey, readyOpHasRequiredTag } from '../config.js';
 import { fetchAllResources, fetchAllMccs, fetchAllInventory, fetchLayerMeta, updateAttributes, createDeploymentFromInventory, updateInventoryMobilizationStatus, fetchMccsForMission, fetchFollowupsForMission, duplicateDeployment, updateMccAttributes, fetchAllReadyOpUsers, createDeploymentFromReadyOpUser } from '../service.js';
 import Column from './Column.jsx';
 import Card from './Card.jsx';
@@ -368,7 +368,10 @@ export default function Board({ onSignOut }) {
       setResources(resData);
       setAllMccs(mccData);
       setInventoryItems(invData);
-      setReadyOpUsers(readyOpData);
+      // Scope the column to READYOP_SERVICE.requiredTag (default
+      // 'TEMA') rather than every contact ReadyOp returns for the
+      // agency.
+      setReadyOpUsers(readyOpData.filter(readyOpHasRequiredTag));
       setLastRefresh(new Date());
     } catch (err) {
       console.error(err);
@@ -685,6 +688,34 @@ export default function Board({ onSignOut }) {
     return out;
   }, [resources, filters.mission]);
 
+  // Same idea as deployedByTag above, but keyed by ReadyOp contact
+  // identity (name + organization) rather than tag_number — Personnel
+  // resources created from a ReadyOp drag don't carry the ReadyOp
+  // ContactID, just the name/org copied across at creation time (see
+  // createDeploymentFromReadyOpUser). Lets the ReadyOp column lock a
+  // contact's card while they're already actively deployed, and show
+  // a status pill, the same way the Inventory column does by tag.
+  const deployedByReadyOpKey = useMemo(() => {
+    const map = new Map();
+    for (const r of resources) {
+      if (String(r[FIELDS.kind] || '').trim() !== 'Personnel') continue;
+      const key = readyOpDeploymentKey(r[FIELDS.identifier], r[FIELDS.entity]);
+      if (key === '|') continue;               // no name and no org — not linkable
+      const existing = map.get(key);
+      if (!existing) { map.set(key, r); continue; }
+
+      const rActive = String(r[FIELDS.status] || '').trim() !== 'Demobilized';
+      const eActive = String(existing[FIELDS.status] || '').trim() !== 'Demobilized';
+      if (rActive && !eActive) { map.set(key, r); continue; }
+      if (!rActive && eActive) continue;
+
+      const re = Number(r[FIELDS.editDate] || 0);
+      const ee = Number(existing[FIELDS.editDate] || 0);
+      if (re > ee) map.set(key, r);
+    }
+    return map;
+  }, [resources]);
+
   const activeResource = activeId
     ? resources.find((r) => String(r[FIELDS.objectId]) === activeId)
     : null;
@@ -767,7 +798,10 @@ export default function Board({ onSignOut }) {
       try {
         // No starting status — the new card lands in Unassigned for
         // the user to triage by dragging into a real status column.
-        await createDeploymentFromReadyOpUser(mcc, user);
+        // ReadyOp assignments land directly in En Route (rather than
+        // Unassigned like inventory) — dropping a person on an MCC means
+        // they're being sent, not just staged for triage.
+        await createDeploymentFromReadyOpUser(mcc, user, { status: 'En Route' });
         await refresh();
       } catch (err) {
         console.error('[RESL-Kanban] createDeploymentFromReadyOpUser failed:', err);
@@ -993,6 +1027,7 @@ export default function Board({ onSignOut }) {
                       label={c.label}
                       accent={c.accent}
                       items={readyOpUsers}
+                      deployedByKey={deployedByReadyOpKey}
                       loading={loading}
                       readOnly={readOnly}
                       pendingIds={pendingReadyOpIds}
