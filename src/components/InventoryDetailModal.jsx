@@ -218,7 +218,7 @@ export default function InventoryDetailModal({
             )}
           </div>
         ) : (
-          <>
+          <div className="modal-body">
             <section className="modal-section">
               <h3>Item</h3>
               <dl>
@@ -322,7 +322,7 @@ export default function InventoryDetailModal({
               )}
               {err && <p className="error-text small">{err}</p>}
             </section>
-          </>
+          </div>
         )}
       </div>
     </div>
