@@ -2,18 +2,17 @@ import { useEffect, useState } from 'react';
 import { INVENTORY_SERVICE, FIELDS, STATUS_COLUMNS, COLUMNS, statusToColumnId } from '../config.js';
 
 // Detail panel for an Inventory item — opened from the ⓘ button on its
-// card (see InventoryColumn.jsx). Mirrors the look of the resource
-// DetailModal (same .modal-backdrop / .modal / .modal-section chrome)
-// but is a single scrolling panel rather than tabs, since there isn't
-// enough content here to need them:
-//   • Item        — static tag/item/make/model/description.
-//   • Current deployment — the linked deployment record (if any), with
-//     an editable status select that writes through the exact same
-//     date-stamping rules as a drag between status columns, plus a
-//     "Return to inventory" action for a record that's stuck showing
-//     as deployed from an old mission that was never demobilized.
-//   • Mobilizations — every deployment record ever tied to this tag,
-//     newest first, so you can see where it's been.
+// card (see InventoryColumn.jsx). Same tabbed .modal-backdrop / .modal
+// chrome as the resource DetailModal, with two tabs:
+//   • Details — static item info (tag/item/make/model/description)
+//     plus the currently linked deployment (if any), with an editable
+//     status select that writes through the exact same date-stamping
+//     rules as a drag between status columns, and a "Return to
+//     inventory" action for a record that's stuck showing as deployed
+//     from an old mission that was never demobilized.
+//   • History — every deployment record ever tied to this tag, newest
+//     first, rendered with the exact same .followup-card / .history-*
+//     chrome as the resource modal's own History tab.
 
 function v(obj, key) {
   if (!key || !obj) return null;
@@ -59,6 +58,7 @@ export default function InventoryDetailModal({
   onStatusChange,      // (deployment, newStatus) => Promise
   onReturnToInventory,  // (deployment) => Promise
 }) {
+  const [activeTab, setActiveTab] = useState('details'); // 'details' | 'history'
   const [confirmingReturn, setConfirmingReturn] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err,  setErr]  = useState('');
@@ -74,6 +74,7 @@ export default function InventoryDetailModal({
   // Reset transient UI state whenever a different item is opened (or
   // the panel closes), so a stale confirm/error doesn't linger.
   useEffect(() => {
+    setActiveTab('details');
     setConfirmingReturn(false);
     setBusy(false);
     setErr('');
@@ -133,164 +134,196 @@ export default function InventoryDetailModal({
           </div>
         </header>
 
-        <section className="modal-section">
-          <h3>Item</h3>
-          <dl>
-            {itm && <div className="modal-row"><dt>Item</dt><dd>{itm}</dd></div>}
-            {mk  && <div className="modal-row"><dt>Make</dt><dd>{mk}</dd></div>}
-            {md  && <div className="modal-row"><dt>Model</dt><dd>{md}</dd></div>}
-            {dsc && <div className="modal-row"><dt>Description</dt><dd>{dsc}</dd></div>}
-            {tag && <div className="modal-row"><dt>Tag</dt><dd>{tag}</dd></div>}
-          </dl>
-        </section>
+        <div className="modal-tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'details'}
+            className={`modal-tab${activeTab === 'details' ? ' is-active' : ''}`}
+            onClick={() => setActiveTab('details')}
+          >
+            Details
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'history'}
+            className={`modal-tab${activeTab === 'history' ? ' is-active' : ''}`}
+            onClick={() => setActiveTab('history')}
+            title="Every deployment record tied to this tag"
+          >
+            History {mobilizations.length > 0 && <span className="tab-count">{mobilizations.length}</span>}
+          </button>
+        </div>
 
-        <section className="modal-section">
-          <h3>Current deployment</h3>
-          {!deployment ? (
-            <p className="muted small">Not currently linked to a deployment — drag this item onto an MCC card to deploy it.</p>
-          ) : (
-            <dl>
-              <div className="modal-row">
-                <dt>Mission</dt>
-                <dd>
-                  {v(deployment, FIELDS.missionId) || '—'}
-                  {v(deployment, FIELDS.requestNumber) ? ` · #${v(deployment, FIELDS.requestNumber)}` : ''}
-                </dd>
+        {activeTab === 'history' ? (
+          <div className="modal-body">
+            {mobilizations.length === 0 ? (
+              <div className="picker-empty">
+                <strong>No deployment history for this tag.</strong>
+                <p className="muted small">
+                  This tag hasn't been linked to any deployment record yet.
+                </p>
               </div>
-              <div className="modal-row editable">
-                <dt>Status</dt>
-                <dd>
-                  {onStatusChange ? (
-                    <select
-                      className="modal-edit-select"
-                      value={depStatus}
-                      onChange={handleStatusSelect}
-                      disabled={busy}
-                    >
-                      <option value="">Unassigned</option>
-                      {statusOptions.map((o) => (
-                        <option key={o} value={o}>{o}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <span style={{ color: accentForStatus(depStatus) }}>{depStatus || 'Unassigned'}</span>
-                  )}
-                  {busy && <span className="muted small modal-edit-status">Saving…</span>}
-                </dd>
-              </div>
-              <div className="modal-row">
-                <dt>Mobilized</dt>
-                <dd>{fmtDate(deployment[FIELDS.itemMobilization]) || '—'}</dd>
-              </div>
-              <div className="modal-row">
-                <dt>Demobilized</dt>
-                <dd>{fmtDate(deployment[FIELDS.itemDemobilization]) || '—'}</dd>
-              </div>
-              <div className="modal-row">
-                <dt>Last edit</dt>
-                <dd>{fmtDateTime(deployment[FIELDS.editDate]) || '—'}</dd>
-              </div>
-            </dl>
-          )}
+            ) : (
+              <>
+                <div className="followups-header">
+                  <div className="muted small followups-count">
+                    {mobilizations.length} mobilization{mobilizations.length === 1 ? '' : 's'}
+                  </div>
+                </div>
+                <ol className="followups-list">
+                  {mobilizations.map((r) => {
+                    const oid  = r[FIELDS.objectId];
+                    const st   = v(r, FIELDS.status);
+                    const when = fmtDateTime(r[FIELDS.editDate]);
+                    const mob  = fmtDate(r[FIELDS.itemMobilization]);
+                    const demob = fmtDate(r[FIELDS.itemDemobilization]);
+                    const reqNum = v(r, FIELDS.requestNumber);
+                    return (
+                      <li key={oid} className="followup-card">
+                        <header className="followup-head">
+                          <div className="followup-author">
+                            <div className="followup-name-line">
+                              <strong>{v(r, FIELDS.missionId) || '—'}</strong>
+                              {reqNum && (
+                                <>
+                                  <span className="dot muted">·</span>
+                                  <span className="muted small">#{reqNum}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          {when && <span className="muted small">{when}</span>}
+                        </header>
+                        <div className="history-body">
+                          <span className="history-transition">
+                            <span className="history-status" style={{ color: accentForStatus(st) }}>
+                              {st || 'Unassigned'}
+                            </span>
+                          </span>
+                          {(mob || demob) && (
+                            <div className="history-context muted small">
+                              {mob && <span>Mob {mob}</span>}
+                              {mob && demob && <span className="dot"> · </span>}
+                              {demob && <span>Demob {demob}</span>}
+                            </div>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </>
+            )}
+          </div>
+        ) : (
+          <>
+            <section className="modal-section">
+              <h3>Item</h3>
+              <dl>
+                {itm && <div className="modal-row"><dt>Item</dt><dd>{itm}</dd></div>}
+                {mk  && <div className="modal-row"><dt>Make</dt><dd>{mk}</dd></div>}
+                {md  && <div className="modal-row"><dt>Model</dt><dd>{md}</dd></div>}
+                {dsc && <div className="modal-row"><dt>Description</dt><dd>{dsc}</dd></div>}
+                {tag && <div className="modal-row"><dt>Tag</dt><dd>{tag}</dd></div>}
+              </dl>
+            </section>
 
-          {isActive && onReturnToInventory && (
-            <div className="modal-return-block">
-              {!confirmingReturn ? (
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => setConfirmingReturn(true)}
-                  disabled={busy}
-                >
-                  Return to inventory
-                </button>
+            <section className="modal-section">
+              <h3>Current deployment</h3>
+              {!deployment ? (
+                <p className="muted small">Not currently linked to a deployment — drag this item onto an MCC card to deploy it.</p>
               ) : (
-                <div className="modal-confirm-row">
-                  <span className="small">
-                    Frees tag {tag || '—'} for redeployment right away. This leaves the record above exactly as it
-                    is — its status and dates won't change, and it will <strong>not</strong> be marked Demobilized.
-                    Use this when it was really demobilized on some earlier, unrecorded date and today's date
-                    would be wrong.
-                  </span>
-                  <div className="modal-confirm-actions">
+                <dl>
+                  <div className="modal-row">
+                    <dt>Mission</dt>
+                    <dd>
+                      {v(deployment, FIELDS.missionId) || '—'}
+                      {v(deployment, FIELDS.requestNumber) ? ` · #${v(deployment, FIELDS.requestNumber)}` : ''}
+                    </dd>
+                  </div>
+                  <div className="modal-row editable">
+                    <dt>Status</dt>
+                    <dd>
+                      {onStatusChange ? (
+                        <select
+                          className="modal-edit-select"
+                          value={depStatus}
+                          onChange={handleStatusSelect}
+                          disabled={busy}
+                        >
+                          <option value="">Unassigned</option>
+                          {statusOptions.map((o) => (
+                            <option key={o} value={o}>{o}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span style={{ color: accentForStatus(depStatus) }}>{depStatus || 'Unassigned'}</span>
+                      )}
+                      {busy && <span className="muted small modal-edit-status">Saving…</span>}
+                    </dd>
+                  </div>
+                  <div className="modal-row">
+                    <dt>Mobilized</dt>
+                    <dd>{fmtDate(deployment[FIELDS.itemMobilization]) || '—'}</dd>
+                  </div>
+                  <div className="modal-row">
+                    <dt>Demobilized</dt>
+                    <dd>{fmtDate(deployment[FIELDS.itemDemobilization]) || '—'}</dd>
+                  </div>
+                  <div className="modal-row">
+                    <dt>Last edit</dt>
+                    <dd>{fmtDateTime(deployment[FIELDS.editDate]) || '—'}</dd>
+                  </div>
+                </dl>
+              )}
+
+              {isActive && onReturnToInventory && (
+                <div className="modal-return-block">
+                  {!confirmingReturn ? (
                     <button
                       type="button"
                       className="btn btn-ghost btn-sm"
-                      onClick={() => setConfirmingReturn(false)}
+                      onClick={() => setConfirmingReturn(true)}
                       disabled={busy}
                     >
-                      Cancel
+                      Return to inventory
                     </button>
-                    <button
-                      type="button"
-                      className="btn btn-primary btn-sm"
-                      onClick={handleReturn}
-                      disabled={busy}
-                    >
-                      {busy ? 'Working…' : 'Confirm return'}
-                    </button>
-                  </div>
+                  ) : (
+                    <div className="modal-confirm-row">
+                      <span className="small">
+                        Frees tag {tag || '—'} for redeployment right away. This leaves the record above exactly as it
+                        is — its status and dates won't change, and it will <strong>not</strong> be marked Demobilized.
+                        Use this when it was really demobilized on some earlier, unrecorded date and today's date
+                        would be wrong.
+                      </span>
+                      <div className="modal-confirm-actions">
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => setConfirmingReturn(false)}
+                          disabled={busy}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          onClick={handleReturn}
+                          disabled={busy}
+                        >
+                          {busy ? 'Working…' : 'Confirm return'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
-          )}
-          {err && <p className="error-text small">{err}</p>}
-        </section>
-
-        <section className="modal-section">
-          <h3>Mobilizations</h3>
-          {mobilizations.length === 0 ? (
-            <p className="muted small">No deployment history for this tag.</p>
-          ) : (
-            <>
-              <div className="muted small followups-count">
-                {mobilizations.length} mobilization{mobilizations.length === 1 ? '' : 's'}
-              </div>
-              <ol className="followups-list">
-                {mobilizations.map((r) => {
-                  const oid  = r[FIELDS.objectId];
-                  const st   = v(r, FIELDS.status);
-                  const when = fmtDateTime(r[FIELDS.editDate]);
-                  const mob  = fmtDate(r[FIELDS.itemMobilization]);
-                  const demob = fmtDate(r[FIELDS.itemDemobilization]);
-                  const reqNum = v(r, FIELDS.requestNumber);
-                  return (
-                    <li key={oid} className="followup-card">
-                      <header className="followup-head">
-                        <div className="followup-author">
-                          <div className="followup-name-line">
-                            <strong>{v(r, FIELDS.missionId) || '—'}</strong>
-                            {reqNum && (
-                              <>
-                                <span className="dot muted">·</span>
-                                <span className="muted small">#{reqNum}</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                        {when && <span className="muted small">{when}</span>}
-                      </header>
-                      <div className="history-body">
-                        <span className="history-transition">
-                          <span className="history-status" style={{ color: accentForStatus(st) }}>
-                            {st || 'Unassigned'}
-                          </span>
-                        </span>
-                        {(mob || demob) && (
-                          <div className="history-context muted small">
-                            {mob && <span>Mob {mob}</span>}
-                            {mob && demob && <span className="dot"> · </span>}
-                            {demob && <span>Demob {demob}</span>}
-                          </div>
-                        )}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
-            </>
-          )}
-        </section>
+              {err && <p className="error-text small">{err}</p>}
+            </section>
+          </>
+        )}
       </div>
     </div>
   );
