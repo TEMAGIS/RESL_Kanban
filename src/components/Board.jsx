@@ -761,7 +761,6 @@ export default function Board({ onSignOut }) {
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
-  const resetColumns = () => setHiddenColumns(new Set());
 
   // Drag handlers
   const handleDragStart = (event) => {
@@ -1145,7 +1144,6 @@ export default function Board({ onSignOut }) {
               hiddenColumns={hiddenColumns}
               disabledColumnIds={disabledColumnIds}
               onToggleColumn={toggleColumn}
-              onResetColumns={resetColumns}
             />
             <div className="toolbar-info">
               <strong>{filtered.length}</strong>

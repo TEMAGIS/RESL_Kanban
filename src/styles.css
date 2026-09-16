@@ -455,9 +455,9 @@ button { font-family: inherit; cursor: pointer; }
   margin-right: 1px;
 }
 /* Inventory detail panel — "Return to inventory" action and its
-   inline confirm step, plus the "Mobilizations" history list. Reuses
-   the existing .btn / .modal-* chrome elsewhere; these are just the
-   pieces that don't already exist. */
+   inline confirm step. The Mobilizations list below it reuses the
+   .followup-card / .history-* chrome from the resource DetailModal's
+   History tab directly, so no separate styles are needed for it. */
 .modal-return-block {
   margin-top: 10px;
 }
@@ -474,27 +474,6 @@ button { font-family: inherit; cursor: pointer; }
   display: flex;
   gap: 8px;
   justify-content: flex-end;
-}
-.mobilization-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.mobilization-row {
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: #fbfbfd;
-}
-.mobilization-row-top {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-  flex-wrap: wrap;
 }
 /* Sub-line under the status pill — distinct-mission count and last
    deployment date, computed on-the-fly from the resources state. */

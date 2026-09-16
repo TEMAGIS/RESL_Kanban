@@ -127,14 +127,13 @@ export function SortToggle({ sortBy, onSortBy }) {
 }
 
 // ─── Column toggles (toolbar row, after sort) ───────────────────────
-export function ColumnToggles({ hiddenColumns, disabledColumnIds, onToggleColumn, onResetColumns }) {
+export function ColumnToggles({ hiddenColumns, disabledColumnIds, onToggleColumn }) {
   // disabledColumnIds covers columns the URL has marked off-limits
   // (e.g. ?hide_inventory=1) — they're not rendered as toggle chips at
   // all, so an embedded view can't bring them back.
   const visibleColumns = disabledColumnIds && disabledColumnIds.size
     ? COLUMNS.filter((c) => !disabledColumnIds.has(c.id))
     : COLUMNS;
-  const anyHidden = hiddenColumns.size > 0;
   return (
     <div className="column-toggles">
       <span className="muted small">Columns:</span>
@@ -154,16 +153,6 @@ export function ColumnToggles({ hiddenColumns, disabledColumnIds, onToggleColumn
           </button>
         );
       })}
-      {anyHidden && (
-        <button
-          type="button"
-          className="link-btn"
-          onClick={onResetColumns}
-          title="Show all columns"
-        >
-          Show all
-        </button>
-      )}
     </div>
   );
 }

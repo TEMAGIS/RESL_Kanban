@@ -238,37 +238,57 @@ export default function InventoryDetailModal({
         </section>
 
         <section className="modal-section">
-          <h3>
-            Mobilizations {mobilizations.length > 0 && <span className="tab-count">{mobilizations.length}</span>}
-          </h3>
+          <h3>Mobilizations</h3>
           {mobilizations.length === 0 ? (
             <p className="muted small">No deployment history for this tag.</p>
           ) : (
-            <ul className="mobilization-list">
-              {mobilizations.map((r) => {
-                const oid = r[FIELDS.objectId];
-                const st  = v(r, FIELDS.status);
-                const line = [
-                  fmtDate(r[FIELDS.itemMobilization])   && `Mob ${fmtDate(r[FIELDS.itemMobilization])}`,
-                  fmtDate(r[FIELDS.itemDemobilization])  && `Demob ${fmtDate(r[FIELDS.itemDemobilization])}`,
-                  fmtDateTime(r[FIELDS.editDate])        && `Last edit ${fmtDateTime(r[FIELDS.editDate])}`,
-                ].filter(Boolean).join(' · ');
-                return (
-                  <li key={oid} className="mobilization-row">
-                    <div className="mobilization-row-top">
-                      <span className="inventory-pill" style={{ '--pill-color': accentForStatus(st) }}>
-                        {st || 'Unassigned'}
-                      </span>
-                      <span className="muted small">
-                        {v(r, FIELDS.missionId) || '—'}
-                        {v(r, FIELDS.requestNumber) ? ` · #${v(r, FIELDS.requestNumber)}` : ''}
-                      </span>
-                    </div>
-                    <div className="muted small">{line || '—'}</div>
-                  </li>
-                );
-              })}
-            </ul>
+            <>
+              <div className="muted small followups-count">
+                {mobilizations.length} mobilization{mobilizations.length === 1 ? '' : 's'}
+              </div>
+              <ol className="followups-list">
+                {mobilizations.map((r) => {
+                  const oid  = r[FIELDS.objectId];
+                  const st   = v(r, FIELDS.status);
+                  const when = fmtDateTime(r[FIELDS.editDate]);
+                  const mob  = fmtDate(r[FIELDS.itemMobilization]);
+                  const demob = fmtDate(r[FIELDS.itemDemobilization]);
+                  const reqNum = v(r, FIELDS.requestNumber);
+                  return (
+                    <li key={oid} className="followup-card">
+                      <header className="followup-head">
+                        <div className="followup-author">
+                          <div className="followup-name-line">
+                            <strong>{v(r, FIELDS.missionId) || '—'}</strong>
+                            {reqNum && (
+                              <>
+                                <span className="dot muted">·</span>
+                                <span className="muted small">#{reqNum}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        {when && <span className="muted small">{when}</span>}
+                      </header>
+                      <div className="history-body">
+                        <span className="history-transition">
+                          <span className="history-status" style={{ color: accentForStatus(st) }}>
+                            {st || 'Unassigned'}
+                          </span>
+                        </span>
+                        {(mob || demob) && (
+                          <div className="history-context muted small">
+                            {mob && <span>Mob {mob}</span>}
+                            {mob && demob && <span className="dot"> · </span>}
+                            {demob && <span>Demob {demob}</span>}
+                          </div>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+            </>
           )}
         </section>
       </div>
