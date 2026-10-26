@@ -1,5 +1,5 @@
 // ============================================================================
-//  CONFIG  —  Resource Deployment Status
+//  CONFIG  —  Resource Deploymen t Status
 //  Mirrors the OAuth 2.0 + PKCE pattern used by Critical2TN. To use the same
 //  AGOL app registration, add this app's redirect URI(s) to the Native App's
 //  redirect URI list in AGOL → Content → (your app item) → Settings.
